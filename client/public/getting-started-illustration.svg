@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="800" height="600" viewBox="0 0 800 600" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background elements -->
+  <path d="M400 50C550 50 670 170 670 320C670 470 550 590 400 590C250 590 130 470 130 320C130 170 250 50 400 50Z" fill="#2D2B3D" fillOpacity="0.3"/>
+  
+  <!-- Decorative lines -->
+  <path d="M200 250C350 250 450 150 600 150" stroke="#8B5CF6" strokeWidth="2" strokeDasharray="4 4"/>
+  <path d="M200 350C350 350 450 450 600 450" stroke="#8B5CF6" strokeWidth="2" strokeDasharray="4 4"/>
+  
+  <!-- Laptop base -->
+  <rect x="300" y="200" width="200" height="150" rx="10" fill="#3B364C"/>
+  <rect x="280" y="340" width="240" height="20" rx="5" fill="#2D2B3D"/>
+  
+  <!-- Screen content -->
+  <rect x="310" y="210" width="180" height="120" rx="5" fill="#1A1A1A"/>
+  
+  <!-- Code elements -->
+  <rect x="320" y="220" width="100" height="6" rx="3" fill="#8B5CF6"/>
+  <rect x="320" y="235" width="80" height="6" rx="3" fill="#6D28D9"/>
+  <rect x="320" y="250" width="120" height="6" rx="3" fill="#8B5CF6"/>
+  
+  <!-- Floating icons -->
+  <circle cx="500" cy="150" r="20" fill="#6D28D9"/>
+  <circle cx="300" cy="450" r="15" fill="#8B5CF6"/>
+  <circle cx="600" cy="300" r="25" fill="#4C1D95"/>
+  
+  <!-- Connection lines -->
+  <path d="M520 150L580 150" stroke="#8B5CF6" strokeWidth="2"/>
+  <path d="M315 450L350 450" stroke="#8B5CF6" strokeWidth="2"/>
+  <path d="M600 275L600 225" stroke="#8B5CF6" strokeWidth="2"/>
+</svg> 

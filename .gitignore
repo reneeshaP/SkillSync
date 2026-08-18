@@ -1,0 +1,44 @@
+# Dependencies
+node_modules/
+
+# Environment variables / secrets
+.env
+.env.local
+.env.*
+!.env.example
+
+# Build output
+dist/
+dist-ssr/
+build/
+
+# Credentials / keys
+*.pem
+*.key
+*.p12
+*.pfx
+*credential*.json
+*serviceAccount*.json
+
+# Claude Code local tool state (not project code)
+.claude/
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Editor / OS junk
+.vscode/*
+!.vscode/extensions.json
+.idea/
+.DS_Store
+Thumbs.db
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
