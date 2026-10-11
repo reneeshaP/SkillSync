@@ -91,6 +91,14 @@ const setupSocket = (server) => {
       }
     });
 
+    // Notify a user that someone viewed their profile
+    socket.on('sendProfileView', (data) => {
+      const ownerSocketId = onlineUsers.get(data.profileOwnerId);
+      if (ownerSocketId) {
+        io.to(ownerSocketId).emit('profileViewed', { viewerId: socket.userId, viewerName: data.viewerName });
+      }
+    });
+
     socket.on('disconnect', () => {
       console.log('User disconnected:', socket.userId);
       onlineUsers.delete(socket.userId);

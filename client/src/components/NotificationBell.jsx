@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
+import PropTypes from 'prop-types';
 import { FiBell } from 'react-icons/fi';
 import notificationService from '../services/notification.service';
 import { useNavigate } from 'react-router-dom';
 
-const NotificationBell = () => {
+const NotificationBell = ({ dropUp }) => {
     const [notifications, setNotifications] = useState([]);
     const [unreadCount, setUnreadCount] = useState(0);
     const [isOpen, setIsOpen] = useState(false);
@@ -46,12 +47,20 @@ const NotificationBell = () => {
                 break;
             case 'POST_LIKE':
             case 'POST_COMMENT':
-                navigate('/');
+                navigate('/feed');
                 break;
             case 'SESSION_REQUEST':
             case 'SESSION_CONFIRMED':
             case 'SESSION_DECLINED':
                 navigate('/sessions');
+                break;
+            case 'PROFILE_VIEW':
+                if (notification.data.viewerId) {
+                    navigate(`/profile/${notification.data.viewerId}`);
+                }
+                break;
+            case 'MENTOR_AVAILABLE':
+                navigate('/people');
                 break;
             default:
                 break;
@@ -101,7 +110,7 @@ const NotificationBell = () => {
             </button>
 
             {isOpen && (
-                <div className="absolute right-0 mt-2 w-80 bg-[#1a1c23] rounded-lg shadow-lg z-50 max-h-[80vh] overflow-y-auto">
+                <div className={`absolute ${dropUp ? 'bottom-full mb-2 left-0' : 'right-0 mt-2'} w-80 bg-[#1a1c23] rounded-lg shadow-lg z-50 max-h-[80vh] overflow-y-auto`}>
                     <div className="p-4 border-b border-gray-700 flex justify-between items-center">
                         <h3 className="text-lg font-semibold text-white">Notifications</h3>
                         {notifications.length > 0 && (
@@ -146,6 +155,8 @@ const NotificationBell = () => {
                                                 {notification.type === 'SESSION_REQUEST' && 'requested a session with you'}
                                                 {notification.type === 'SESSION_CONFIRMED' && 'confirmed your session request'}
                                                 {notification.type === 'SESSION_DECLINED' && 'declined your session request'}
+                                                {notification.type === 'PROFILE_VIEW' && 'viewed your profile'}
+                                                {notification.type === 'MENTOR_AVAILABLE' && 'is available right now'}
                                             </p>
                                             {notification.data.message && (
                                                 <p className="mt-1 text-sm text-gray-400 line-clamp-2">
@@ -170,4 +181,8 @@ const NotificationBell = () => {
     );
 };
 
-export default NotificationBell; 
+NotificationBell.propTypes = {
+    dropUp: PropTypes.bool,
+};
+
+export default NotificationBell;

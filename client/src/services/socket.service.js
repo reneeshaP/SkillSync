@@ -93,6 +93,10 @@ class SocketService {
         this.socket.on('sessionResponse', (data) => {
             this.triggerHandler('sessionResponse', data);
         });
+
+        this.socket.on('profileViewed', (data) => {
+            this.triggerHandler('profileViewed', data);
+        });
     }
 
     on(event, handler) {

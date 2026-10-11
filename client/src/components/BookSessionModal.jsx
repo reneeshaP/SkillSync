@@ -1,15 +1,16 @@
 import { useEffect, useState } from 'react';
 import PropTypes from 'prop-types';
-import { X, Calendar } from 'lucide-react';
+import { Calendar } from 'lucide-react';
 import { sessionService } from '../services/session.service';
 import { reviewService } from '../services/review.service';
 import { useSocket } from '../contexts/SocketContext';
+import { formatRelativeSlot } from '../lib/datetime';
 import StarRating from './StarRating';
-
-const formatSlotTime = (isoString) => {
-  const date = new Date(isoString);
-  return date.toLocaleString([], { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
-};
+import { Dialog, DialogContent, DialogTitle } from './ui/Dialog';
+import { RadioGroup, RadioGroupItem } from './ui/RadioGroup';
+import { Textarea } from './ui/Textarea';
+import { Button } from './ui/Button';
+import { Skeleton } from './ui/Skeleton';
 
 export default function BookSessionModal({ mentor, onClose, onBooked }) {
   const { socket: socketContext } = useSocket();
@@ -63,99 +64,78 @@ export default function BookSessionModal({ mentor, onClose, onBooked }) {
   };
 
   return (
-    <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
-      <div className="bg-[#1a1c23] rounded-xl p-6 max-w-md w-full">
-        <div className="flex items-center justify-between mb-4">
-          <div>
-            <h3 className="text-white font-semibold flex items-center gap-2">
-              <Calendar size={20} className="text-purple-500" />
-              Book a session with {mentor.username}
-            </h3>
-            {mentor.reviewCount > 0 && (
-              <div className="flex items-center gap-1.5 mt-1 ml-7">
-                <StarRating rating={mentor.averageRating} readOnly size={13} />
-                <span className="text-xs text-gray-500">{mentor.averageRating.toFixed(1)} ({mentor.reviewCount} reviews)</span>
-              </div>
-            )}
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="max-w-md">
+        <DialogTitle className="flex items-center gap-2">
+          <Calendar size={20} className="text-brand" />
+          Book a session with {mentor.username}
+        </DialogTitle>
+        {mentor.reviewCount > 0 && (
+          <div className="flex items-center gap-1.5 mt-1 ml-7">
+            <StarRating rating={mentor.averageRating} readOnly size={13} />
+            <span className="text-caption text-text-subtle">{mentor.averageRating.toFixed(1)} ({mentor.reviewCount} reviews)</span>
           </div>
-          <button onClick={onClose} className="text-gray-400 hover:text-white">
-            <X size={20} />
-          </button>
-        </div>
+        )}
 
         {error && (
-          <div className="bg-red-500/10 border border-red-500 text-red-500 rounded-lg p-3 mb-4 text-sm">
+          <div className="bg-danger/10 border border-danger text-danger rounded-lg p-3 mt-4 text-body-sm">
             {error}
           </div>
         )}
 
         {reviews.length > 0 && (
-          <div className="mb-4 max-h-32 overflow-y-auto space-y-2 border-b border-[#282c3a] pb-3">
+          <div className="mt-4 max-h-32 overflow-y-auto space-y-2 border-b border-border pb-3">
             {reviews.slice(0, 3).map((review) => (
-              <div key={review._id} className="text-sm">
+              <div key={review._id} className="text-body-sm">
                 <div className="flex items-center gap-2">
                   <StarRating rating={review.rating} readOnly size={12} />
-                  <span className="text-gray-400 text-xs">{review.mentee?.username}</span>
+                  <span className="text-text-subtle text-caption">{review.mentee?.username}</span>
                 </div>
-                {review.comment && <p className="text-gray-400 text-xs mt-0.5">{review.comment}</p>}
+                {review.comment && <p className="text-text-subtle text-caption mt-0.5">{review.comment}</p>}
               </div>
             ))}
           </div>
         )}
 
         {loading ? (
-          <div className="flex justify-center py-8">
-            <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-purple-500"></div>
+          <div className="space-y-2 mt-4">
+            <Skeleton className="h-11 w-full rounded-lg" />
+            <Skeleton className="h-11 w-full rounded-lg" />
+            <Skeleton className="h-11 w-full rounded-lg" />
           </div>
         ) : slots.length === 0 ? (
-          <p className="text-gray-400 text-sm py-4">
+          <p className="text-text-muted text-body-sm py-4">
             {mentor.username} hasn't added any available time slots yet.
           </p>
         ) : (
-          <form onSubmit={handleBook}>
-            <div className="space-y-2 max-h-60 overflow-y-auto mb-4">
+          <form onSubmit={handleBook} className="mt-4">
+            <RadioGroup value={selectedSlotId} onValueChange={setSelectedSlotId} className="max-h-60 overflow-y-auto mb-4 pr-1">
               {slots.map((slot) => (
-                <label
-                  key={slot._id}
-                  className={`flex items-center gap-3 rounded-lg px-3 py-2 cursor-pointer transition-colors ${
-                    selectedSlotId === slot._id ? 'bg-purple-600/20 border border-purple-500' : 'bg-[#282c3a] border border-transparent'
-                  }`}
-                >
-                  <input
-                    type="radio"
-                    name="slot"
-                    value={slot._id}
-                    checked={selectedSlotId === slot._id}
-                    onChange={() => setSelectedSlotId(slot._id)}
-                    className="accent-purple-600"
-                  />
-                  <span className="text-sm text-gray-200">
-                    {formatSlotTime(slot.startTime)} – {new Date(slot.endTime).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
-                  </span>
-                </label>
+                <RadioGroupItem key={slot._id} value={slot._id} className="px-3 py-2.5 pr-10 mb-2 last:mb-0">
+                  <span className="text-body-sm text-text">{formatRelativeSlot(slot)}</span>
+                </RadioGroupItem>
               ))}
-            </div>
+            </RadioGroup>
 
-            <label className="block text-sm text-gray-300 mb-2">What do you want to discuss? (optional)</label>
-            <textarea
+            <label htmlFor="session-topic" className="block text-body-sm text-text-muted mb-2">
+              What do you want to discuss? (optional)
+            </label>
+            <Textarea
+              id="session-topic"
               value={topic}
               onChange={(e) => setTopic(e.target.value)}
               rows={2}
               placeholder="e.g. React performance, career advice..."
-              className="w-full bg-[#282c3a] rounded-lg px-3 py-2 text-white text-sm mb-4 focus:outline-none focus:ring-2 focus:ring-purple-500"
+              className="mb-4"
             />
 
-            <button
-              type="submit"
-              disabled={!selectedSlotId || submitting}
-              className="w-full bg-purple-600 hover:bg-purple-700 disabled:opacity-50 text-white py-2 rounded-lg transition"
-            >
+            <Button type="submit" variant="primary" className="w-full" disabled={!selectedSlotId} loading={submitting}>
               {submitting ? 'Booking...' : 'Request session'}
-            </button>
+            </Button>
           </form>
         )}
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 

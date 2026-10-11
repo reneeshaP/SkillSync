@@ -1,37 +1,58 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { FiZap, FiMessageCircle } from 'react-icons/fi';
+import { FiZap } from 'react-icons/fi';
 import { mentorService } from '../services/mentor.service';
+import { connectionService } from '../services/connection.service';
 import { useAuth } from '../context/AuthContext';
-import StarRating from './StarRating';
-
-const API_URL = 'http://localhost:8000';
+import { useSocket } from '../contexts/SocketContext';
+import notificationService from '../services/notification.service';
+import BookSessionModal from './BookSessionModal';
+import MatchCard from './MatchCard';
+import { EmptyState } from './ui/EmptyState';
+import { ErrorState } from './ui/ErrorState';
+import { toast } from './ui/Toast';
 
 export default function MentorRecommendations() {
   const { user } = useAuth();
+  const { socket } = useSocket();
   const navigate = useNavigate();
   const [recommendations, setRecommendations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [bookingMentor, setBookingMentor] = useState(null);
+
+  const fetchRecommendations = useCallback(async () => {
+    setLoading(true);
+    setError('');
+    try {
+      const data = await mentorService.getRecommendations();
+      setRecommendations(data);
+      data.forEach(({ user: matchedUser }) => {
+        if (matchedUser.role === 'mentor' && matchedUser.nextAvailableSlot) {
+          notificationService.notifyMentorAvailable(matchedUser);
+        }
+      });
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to load matches');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
-    const fetchRecommendations = async () => {
-      try {
-        const data = await mentorService.getRecommendations();
-        setRecommendations(data);
-      } catch (err) {
-        setError(err.response?.data?.message || 'Failed to load matches');
-      } finally {
-        setLoading(false);
-      }
-    };
-
     fetchRecommendations();
-  }, [user]);
+  }, [fetchRecommendations, user]);
 
-  const getAvatarUrl = (avatarPath) => {
-    if (!avatarPath) return null;
-    return avatarPath.startsWith('http') ? avatarPath : `${API_URL}${avatarPath}`;
+  const handleConnect = async (matchedUser) => {
+    if (!matchedUser.isConnected) {
+      try {
+        const request = await connectionService.sendRequest(matchedUser._id);
+        socket?.emit('sendConnectionRequest', { receiverId: matchedUser._id, requestData: request });
+      } catch (err) {
+        console.error('Connection request error (continuing to chat):', err.response?.data?.message || err.message);
+      }
+    }
+    navigate('/chat', { state: { userId: matchedUser._id, username: matchedUser.username } });
   };
 
   if (loading) return null;
@@ -54,58 +75,35 @@ export default function MentorRecommendations() {
       </div>
 
       {error ? (
-        <p className="text-sm text-gray-400">{error}</p>
+        <ErrorState title="Couldn't load your matches" onRetry={fetchRecommendations} className="py-6" />
       ) : recommendations.length === 0 ? (
-        <p className="text-sm text-gray-400">
-          No matches yet — {user?.role === 'mentor' ? 'mentees' : 'mentors'} need to fill in their skills and bio first.
-        </p>
+        <EmptyState
+          icon={FiZap}
+          title="No matches yet"
+          body={`${user?.role === 'mentor' ? 'Mentees' : 'Mentors'} need to fill in their skills and bio first.`}
+          className="py-6"
+        />
       ) : (
         <div className="space-y-3">
-          {recommendations.map(({ user: matchedUser, matchPercent }) => (
-            <div
-              key={matchedUser._id}
-              className="flex items-center justify-between bg-[#282c3a] rounded-lg p-3"
-            >
-              <div className="flex items-center gap-3">
-                {matchedUser.avatar ? (
-                  <img
-                    src={getAvatarUrl(matchedUser.avatar)}
-                    className="w-10 h-10 rounded-full object-cover"
-                    alt={matchedUser.username}
-                  />
-                ) : (
-                  <div className="w-10 h-10 bg-purple-700 rounded-full flex items-center justify-center font-semibold">
-                    {matchedUser.username.substring(0, 2).toUpperCase()}
-                  </div>
-                )}
-                <div>
-                  <h3 className="font-medium">{matchedUser.username}</h3>
-                  {matchedUser.role === 'mentor' && matchedUser.reviewCount > 0 && (
-                    <div className="flex items-center gap-1.5 mt-0.5">
-                      <StarRating rating={matchedUser.averageRating} readOnly size={12} />
-                      <span className="text-xs text-gray-500">{matchedUser.averageRating.toFixed(1)}</span>
-                    </div>
-                  )}
-                  <p className="text-sm text-gray-400 line-clamp-1">
-                    {matchedUser.bio || matchedUser.skills?.join(', ') || 'No bio yet'}
-                  </p>
-                </div>
-              </div>
-              <div className="flex items-center gap-3">
-                <span className="text-xs font-semibold text-purple-400 bg-purple-500/10 px-2 py-1 rounded-full">
-                  {matchPercent}% match
-                </span>
-                <button
-                  onClick={() => navigate('/chat', { state: { userId: matchedUser._id, username: matchedUser.username } })}
-                  className="text-gray-400 hover:text-purple-500 transition-colors"
-                  title={`Message ${matchedUser.username}`}
-                >
-                  <FiMessageCircle size={18} />
-                </button>
-              </div>
-            </div>
+          {recommendations.map((match) => (
+            <MatchCard
+              key={match.user._id}
+              match={match}
+              compact
+              onHeaderClick={() => navigate(`/profile/${match.user._id}`)}
+              onConnect={handleConnect}
+              onBook={setBookingMentor}
+            />
           ))}
         </div>
+      )}
+
+      {bookingMentor && (
+        <BookSessionModal
+          mentor={bookingMentor}
+          onClose={() => setBookingMentor(null)}
+          onBooked={() => toast.success(`Session request sent to ${bookingMentor.username}! You'll be notified when they respond.`)}
+        />
       )}
     </div>
   );

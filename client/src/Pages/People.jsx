@@ -1,53 +1,107 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { FiArrowLeft, FiZap, FiMessageCircle, FiCalendar, FiClock } from 'react-icons/fi';
+import { FiZap, FiClock, FiGrid, FiList } from 'react-icons/fi';
 import { mentorService } from '../services/mentor.service';
+import { connectionService } from '../services/connection.service';
 import { useAuth } from '../context/AuthContext';
+import { useSocket } from '../contexts/SocketContext';
+import notificationService from '../services/notification.service';
 import BookSessionModal from '../components/BookSessionModal';
-import StarRating from '../components/StarRating';
+import MatchCard from '../components/MatchCard';
+import { EmptyState } from '../components/ui/EmptyState';
+import { ErrorState } from '../components/ui/ErrorState';
+import { Skeleton } from '../components/ui/Skeleton';
+import { Select, SelectValue, SelectTrigger, SelectContent, SelectItem } from '../components/ui/Select';
+import { Switch } from '../components/ui/Switch';
+import { IconButton } from '../components/ui/IconButton';
+import { toast } from '../components/ui/Toast';
+import { cn } from '../lib/utils';
 
-const API_URL = 'http://localhost:8000';
+const MatchCardSkeleton = () => (
+  <div className="flex items-center gap-4 bg-surface border border-border rounded-xl p-4">
+    <Skeleton className="h-12 w-12 rounded-full shrink-0" />
+    <div className="flex-1 space-y-2">
+      <Skeleton className="h-4 w-32" />
+      <Skeleton className="h-3 w-48" />
+    </div>
+    <Skeleton className="h-10 w-10 rounded-full shrink-0" />
+  </div>
+);
 
 export default function People() {
   const { user } = useAuth();
+  const { socket } = useSocket();
   const navigate = useNavigate();
   const [matches, setMatches] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [bookingMentor, setBookingMentor] = useState(null);
+  const [sortBy, setSortBy] = useState('match');
+  const [availableOnly, setAvailableOnly] = useState(false);
+  const [compact, setCompact] = useState(false);
+
+  const viewingMentors = user?.role !== 'mentor';
+
+  const fetchMatches = async () => {
+    setLoading(true);
+    setError('');
+    try {
+      const data = await mentorService.getRecommendations();
+      setMatches(data);
+      data.forEach(({ user: matchedUser }) => {
+        if (matchedUser.role === 'mentor' && matchedUser.nextAvailableSlot) {
+          notificationService.notifyMentorAvailable(matchedUser);
+        }
+      });
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to load matches');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    const fetchMatches = async () => {
-      try {
-        const data = await mentorService.getRecommendations();
-        setMatches(data);
-      } catch (err) {
-        setError(err.response?.data?.message || 'Failed to load matches');
-      } finally {
-        setLoading(false);
-      }
-    };
     fetchMatches();
   }, []);
 
-  const getAvatarUrl = (avatarPath) => {
-    if (!avatarPath) return null;
-    return avatarPath.startsWith('http') ? avatarPath : `${API_URL}${avatarPath}`;
+  const targetLabel = user?.role === 'mentor' ? 'Mentees' : 'Mentors';
+
+  const handleConnect = async (matchedUser) => {
+    if (!matchedUser.isConnected) {
+      try {
+        const request = await connectionService.sendRequest(matchedUser._id);
+        socket?.emit('sendConnectionRequest', { receiverId: matchedUser._id, requestData: request });
+      } catch (err) {
+        console.error('Connection request error (continuing to chat):', err.response?.data?.message || err.message);
+      }
+    }
+    navigate('/chat', { state: { userId: matchedUser._id, username: matchedUser.username } });
   };
 
-  const targetLabel = user?.role === 'mentor' ? 'Mentees' : 'Mentors';
+  const visibleMatches = useMemo(() => {
+    let list = matches;
+    if (availableOnly) {
+      list = list.filter((m) => !!m.user.nextAvailableSlot);
+    }
+    list = [...list];
+    if (sortBy === 'rating') {
+      list.sort((a, b) => (b.user.averageRating || 0) - (a.user.averageRating || 0));
+    } else if (sortBy === 'availability') {
+      list.sort((a, b) => {
+        if (!a.user.nextAvailableSlot) return 1;
+        if (!b.user.nextAvailableSlot) return -1;
+        return new Date(a.user.nextAvailableSlot.startTime) - new Date(b.user.nextAvailableSlot.startTime);
+      });
+    } else {
+      list.sort((a, b) => b.matchPercent - a.matchPercent);
+    }
+    return list;
+  }, [matches, sortBy, availableOnly]);
 
   return (
     <div className="min-h-screen bg-[#0f1117] text-white p-6">
       <div className="max-w-2xl mx-auto">
         <div className="flex items-center gap-3 mb-6">
-          <button
-            onClick={() => navigate('/')}
-            className="text-gray-400 hover:text-white transition-colors"
-            title="Back to home"
-          >
-            <FiArrowLeft size={22} />
-          </button>
           <FiZap className="text-purple-500" size={22} />
           <h1 className="text-2xl font-bold flex-1">{targetLabel} matched for you</h1>
           <button
@@ -58,86 +112,70 @@ export default function People() {
           </button>
         </div>
 
+        {!loading && !error && matches.length > 0 && (
+          <div className="flex flex-wrap items-center gap-3 mb-4 text-sm">
+            <Select value={sortBy} onValueChange={setSortBy}>
+              <SelectTrigger className="w-auto h-9 gap-2">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="match">Best match</SelectItem>
+                {viewingMentors && <SelectItem value="rating">Highest rated</SelectItem>}
+                {viewingMentors && <SelectItem value="availability">Available soonest</SelectItem>}
+              </SelectContent>
+            </Select>
+
+            {viewingMentors && (
+              <label className="flex items-center gap-2 text-text-muted cursor-pointer">
+                <Switch checked={availableOnly} onCheckedChange={setAvailableOnly} />
+                Available now only
+              </label>
+            )}
+
+            <div className="ml-auto flex items-center gap-1">
+              <IconButton
+                aria-label="Comfortable view"
+                onClick={() => setCompact(false)}
+                className={cn(!compact && 'bg-surface-overlay text-text')}
+              >
+                <FiList size={16} />
+              </IconButton>
+              <IconButton
+                aria-label="Compact view"
+                onClick={() => setCompact(true)}
+                className={cn(compact && 'bg-surface-overlay text-text')}
+              >
+                <FiGrid size={16} />
+              </IconButton>
+            </div>
+          </div>
+        )}
+
         {loading ? (
-          <div className="flex justify-center items-center h-40">
-            <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-purple-500"></div>
+          <div className="space-y-3">
+            <MatchCardSkeleton />
+            <MatchCardSkeleton />
+            <MatchCardSkeleton />
           </div>
         ) : error ? (
-          <div className="bg-[#1a1c23] rounded-xl p-6 text-gray-400">{error}</div>
+          <ErrorState title="Couldn't load your matches" body={error} onRetry={fetchMatches} />
         ) : matches.length === 0 ? (
-          <div className="bg-[#1a1c23] rounded-xl p-6 text-gray-400">
-            No matches yet — {user?.role === 'mentor' ? 'mentees' : 'mentors'} need to fill in their skills and bio first.
-          </div>
+          <EmptyState
+            icon={FiZap}
+            title="No matches yet"
+            body={`${user?.role === 'mentor' ? 'Mentees' : 'Mentors'} need to fill in their skills and bio first.`}
+          />
         ) : (
           <div className="space-y-3">
-            {matches.map(({ user: matchedUser, matchPercent }) => (
-              <div
-                key={matchedUser._id}
-                className="bg-[#1a1c23] rounded-xl p-4 flex items-center justify-between"
-              >
-                <div className="flex items-center gap-4">
-                  {matchedUser.avatar ? (
-                    <img
-                      src={getAvatarUrl(matchedUser.avatar)}
-                      className="w-12 h-12 rounded-full object-cover"
-                      alt={matchedUser.username}
-                    />
-                  ) : (
-                    <div className="w-12 h-12 bg-purple-700 rounded-full flex items-center justify-center font-semibold">
-                      {matchedUser.username.substring(0, 2).toUpperCase()}
-                    </div>
-                  )}
-                  <div>
-                    <h3 className="font-semibold">{matchedUser.username}</h3>
-                    {matchedUser.role === 'mentor' && matchedUser.reviewCount > 0 && (
-                      <div className="flex items-center gap-1.5 mt-0.5">
-                        <StarRating rating={matchedUser.averageRating} readOnly size={13} />
-                        <span className="text-xs text-gray-500">
-                          {matchedUser.averageRating.toFixed(1)} ({matchedUser.reviewCount})
-                        </span>
-                      </div>
-                    )}
-                    <p className="text-sm text-gray-400 line-clamp-1">
-                      {matchedUser.bio || matchedUser.skills?.join(', ') || 'No bio yet'}
-                    </p>
-                    {matchedUser.skills?.length > 0 && (
-                      <div className="flex flex-wrap gap-1 mt-1">
-                        {matchedUser.skills.slice(0, 4).map((skill) => (
-                          <span
-                            key={skill}
-                            className="bg-purple-600/20 text-purple-400 px-2 py-0.5 rounded-full text-xs"
-                          >
-                            {skill}
-                          </span>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </div>
-                <div className="flex items-center gap-3 shrink-0">
-                  <span className="text-xs font-semibold text-purple-400 bg-purple-500/10 px-2 py-1 rounded-full">
-                    {matchPercent}% match
-                  </span>
-                  {matchedUser.role === 'mentor' && (
-                    <button
-                      onClick={() => setBookingMentor(matchedUser)}
-                      className="flex items-center gap-1 bg-[#282c3a] hover:bg-[#323744] transition px-3 py-1.5 rounded-lg text-sm"
-                      title="Book a session"
-                    >
-                      <FiCalendar size={16} />
-                    </button>
-                  )}
-                  <button
-                    onClick={() => navigate('/chat', {
-                      state: { userId: matchedUser._id, username: matchedUser.username }
-                    })}
-                    className="flex items-center gap-1 bg-purple-600 hover:bg-purple-700 transition px-3 py-1.5 rounded-lg text-sm"
-                  >
-                    <FiMessageCircle size={16} />
-                    Message
-                  </button>
-                </div>
-              </div>
+            {visibleMatches.map((match) => (
+              <MatchCard
+                key={match.user._id}
+                match={match}
+                compact={compact}
+                onHeaderClick={() => navigate(`/profile/${match.user._id}`)}
+                onConnect={handleConnect}
+                onBook={setBookingMentor}
+              />
             ))}
           </div>
         )}
@@ -147,7 +185,7 @@ export default function People() {
         <BookSessionModal
           mentor={bookingMentor}
           onClose={() => setBookingMentor(null)}
-          onBooked={() => alert(`Session request sent to ${bookingMentor.username}! You'll be notified when they respond.`)}
+          onBooked={() => toast.success(`Session request sent to ${bookingMentor.username}! You'll be notified when they respond.`)}
         />
       )}
     </div>

@@ -31,6 +31,10 @@ const userSchema = new mongoose.Schema({
         type: Boolean,
         default: true
     },
+    profileCompleted: {
+        type: Boolean,
+        default: false
+    },
     role: {
         type: String,
         enum: ['mentor', 'mentee'],
@@ -78,6 +82,16 @@ const userSchema = new mongoose.Schema({
     bio: {
         type: String,
         default: ''
+    },
+    resume: {
+        url: {
+            type: String,
+            default: ''
+        },
+        filename: {
+            type: String,
+            default: ''
+        }
     },
     connections: [{
         type: mongoose.Schema.Types.ObjectId,

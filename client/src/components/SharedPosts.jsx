@@ -1,13 +1,11 @@
 import { useState, useEffect } from 'react';
 import { postService } from '../services/post.service';
 import ManagePost from './ManagePost';
-import { useAuth } from '../context/AuthContext';
 
 export default function SharedPosts() {
     const [posts, setPosts] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
-    const { user } = useAuth();
 
     useEffect(() => {
         fetchSharedPosts();

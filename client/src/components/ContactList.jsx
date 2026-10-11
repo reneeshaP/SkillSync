@@ -1,11 +1,5 @@
 import PropTypes from 'prop-types';
-
-const API_URL = 'http://localhost:8000';
-
-const getAvatarUrl = (avatarPath, fallbackName) => {
-  if (!avatarPath) return `https://ui-avatars.com/api/?name=${encodeURIComponent(fallbackName || '?')}`;
-  return avatarPath.startsWith('http') ? avatarPath : `${API_URL}${avatarPath}`;
-};
+import { Avatar } from './ui/Avatar';
 
 const ContactList = ({ selectedContact, onContactSelect, conversations }) => {
   return (
@@ -19,38 +13,34 @@ const ContactList = ({ selectedContact, onContactSelect, conversations }) => {
 
         const contact = conversation.otherUser;
         const lastMessage = conversation.lastMessage;
-        
+
         return (
-        <div 
+        <div
             key={conversation._id}
           className={`flex items-center gap-3 p-3 mx-2 rounded-lg cursor-pointer transition-colors ${
-              selectedContact === contact.username ? 'bg-slate-700' : 'hover:bg-slate-800'
+              selectedContact === contact.username ? 'bg-surface-overlay' : 'hover:bg-surface-raised'
           }`}
             onClick={() => onContactSelect(contact.username)}
         >
           <div className="relative">
-            <img 
-                src={getAvatarUrl(contact.avatar, contact.username)}
-                alt={contact.username}
-              className="w-12 h-12 rounded-full object-cover"
-            />
+            <Avatar src={contact.avatar} name={contact.username} userId={contact._id} size="lg" />
               {conversation.unreadCount > 0 && (
-              <div className="absolute -top-1 -right-1 w-3 h-3 bg-blue-500 rounded-full"></div>
+              <div className="absolute -top-1 -right-1 w-3 h-3 bg-brand rounded-full border-2 border-bg"></div>
             )}
           </div>
-          
+
           <div className="flex-1 min-w-0">
             <div className="flex items-center justify-between">
-                <h3 className="text-white font-medium truncate">
+                <h3 className="text-text font-medium truncate">
                   {contact.username || contact.name || 'Unknown User'}
                 </h3>
                 {lastMessage?.createdAt && (
-                  <span className="text-slate-400 text-sm">
+                  <span className="text-text-subtle text-caption shrink-0 ml-2">
                     {new Date(lastMessage.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                   </span>
               )}
             </div>
-              <p className="text-sm truncate text-slate-400">
+              <p className="text-body-sm truncate text-text-muted">
                 {lastMessage?.text || 'No messages yet'}
             </p>
           </div>
@@ -67,4 +57,4 @@ ContactList.propTypes = {
   conversations: PropTypes.array.isRequired
 };
 
-export default ContactList; 
+export default ContactList;

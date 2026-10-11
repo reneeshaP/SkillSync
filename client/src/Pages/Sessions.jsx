@@ -1,30 +1,28 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import PropTypes from 'prop-types';
-import { useNavigate } from 'react-router-dom';
-import { FiArrowLeft, FiCalendar, FiCheck, FiX, FiStar } from 'react-icons/fi';
+import { FiCalendar, FiCheck, FiX, FiStar } from 'react-icons/fi';
 import { sessionService } from '../services/session.service';
 import { reviewService } from '../services/review.service';
 import { useAuth } from '../context/AuthContext';
 import { useSocket } from '../contexts/SocketContext';
+import { formatRelativeSlot } from '../lib/datetime';
 import StarRating from '../components/StarRating';
+import { Avatar } from '../components/ui/Avatar';
+import { Badge } from '../components/ui/Badge';
+import { Button } from '../components/ui/Button';
+import { Textarea } from '../components/ui/Textarea';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '../components/ui/Tabs';
+import { Skeleton } from '../components/ui/Skeleton';
+import { EmptyState } from '../components/ui/EmptyState';
+import { ErrorState } from '../components/ui/ErrorState';
+import { ConfirmDialog } from '../components/ui/ConfirmDialog';
+import { toast } from '../components/ui/Toast';
 
-const API_URL = 'http://localhost:8000';
-
-const getAvatarUrl = (avatarPath, fallbackName) => {
-  if (!avatarPath) return `https://ui-avatars.com/api/?name=${encodeURIComponent(fallbackName || '?')}`;
-  return avatarPath.startsWith('http') ? avatarPath : `${API_URL}${avatarPath}`;
-};
-
-const formatSlotTime = (isoString) => {
-  const date = new Date(isoString);
-  return date.toLocaleString([], { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
-};
-
-const STATUS_STYLES = {
-  pending: 'bg-yellow-500/10 text-yellow-400',
-  confirmed: 'bg-green-500/10 text-green-400',
-  declined: 'bg-red-500/10 text-red-400',
-  cancelled: 'bg-gray-500/10 text-gray-400'
+const STATUS_VARIANT = {
+  pending: 'warning',
+  confirmed: 'success',
+  declined: 'danger',
+  cancelled: 'neutral'
 };
 
 const RateMentorSection = ({ session, onRated }) => {
@@ -61,7 +59,7 @@ const RateMentorSection = ({ session, onRated }) => {
       setOpen(false);
       onRated?.();
     } catch (err) {
-      alert(err.response?.data?.message || 'Failed to submit review');
+      toast.error(err.response?.data?.message || 'Failed to submit review');
     } finally {
       setSubmitting(false);
     }
@@ -71,7 +69,7 @@ const RateMentorSection = ({ session, onRated }) => {
     return (
       <button
         onClick={handleOpen}
-        className="flex items-center gap-1 text-sm text-gray-400 hover:text-yellow-400 transition mt-3"
+        className="flex items-center gap-1 text-body-sm text-text-muted hover:text-warning transition mt-3"
       >
         <FiStar size={16} /> Rate this mentor
       </button>
@@ -79,37 +77,29 @@ const RateMentorSection = ({ session, onRated }) => {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="mt-3 bg-[#282c3a] rounded-lg p-3">
+    <form onSubmit={handleSubmit} className="mt-3 bg-surface-overlay rounded-lg p-3">
       {loading ? (
-        <p className="text-sm text-gray-400">Loading...</p>
+        <p className="text-body-sm text-text-muted">Loading...</p>
       ) : (
         <>
-          <p className="text-sm text-gray-300 mb-2">
+          <p className="text-body-sm text-text-muted mb-2">
             {existingReview ? 'Edit your review of' : 'Rate'} {session.mentor.username}
           </p>
           <StarRating rating={rating} onChange={setRating} size={22} />
-          <textarea
+          <Textarea
             value={comment}
             onChange={(e) => setComment(e.target.value)}
             rows={2}
             placeholder="Optional comment..."
-            className="w-full bg-[#1a1c23] rounded-lg px-3 py-2 text-white text-sm mt-2 focus:outline-none focus:ring-2 focus:ring-purple-500"
+            className="mt-2"
           />
           <div className="flex gap-2 mt-2">
-            <button
-              type="submit"
-              disabled={!rating || submitting}
-              className="bg-purple-600 hover:bg-purple-700 disabled:opacity-50 text-white px-3 py-1.5 rounded-lg text-sm transition"
-            >
+            <Button type="submit" variant="primary" size="sm" disabled={!rating} loading={submitting}>
               {submitting ? 'Saving...' : 'Submit'}
-            </button>
-            <button
-              type="button"
-              onClick={() => setOpen(false)}
-              className="text-sm text-gray-400 hover:text-white transition"
-            >
+            </Button>
+            <Button type="button" variant="ghost" size="sm" onClick={() => setOpen(false)}>
               Cancel
-            </button>
+            </Button>
           </div>
         </>
       )}
@@ -128,15 +118,75 @@ RateMentorSection.propTypes = {
   onRated: PropTypes.func
 };
 
+function SessionCard({ session, currentUserId, onRespond, onCancel, onRated }) {
+  const isMentor = session.mentor._id === currentUserId;
+  const otherUser = isMentor ? session.mentee : session.mentor;
+
+  return (
+    <div className="bg-surface-raised border border-border rounded-xl p-4">
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex items-center gap-3 min-w-0">
+          <Avatar src={otherUser.avatar} name={otherUser.username} userId={otherUser._id} size="md" />
+          <div className="min-w-0">
+            <h3 className="font-semibold text-text truncate">{otherUser.username}</h3>
+            <p className="text-body-sm text-text-muted">{formatRelativeSlot(session.slot)}</p>
+            {session.topic && <p className="text-body-sm text-text-subtle mt-1">"{session.topic}"</p>}
+          </div>
+        </div>
+        <Badge variant={STATUS_VARIANT[session.status]} size="sm" className="capitalize shrink-0">
+          {session.status}
+        </Badge>
+      </div>
+
+      {session.status === 'pending' && isMentor && (
+        <div className="flex gap-2 mt-3">
+          <Button variant="primary" size="sm" className="bg-success hover:opacity-90" onClick={() => onRespond(session, true)}>
+            <FiCheck size={16} /> Confirm
+          </Button>
+          <Button variant="secondary" size="sm" onClick={() => onRespond(session, false)}>
+            <FiX size={16} /> Decline
+          </Button>
+        </div>
+      )}
+
+      {(session.status === 'pending' || session.status === 'confirmed') && !(session.status === 'pending' && isMentor) && (
+        <div className="mt-3">
+          <button
+            onClick={() => onCancel(session)}
+            className="text-body-sm text-text-muted hover:text-danger transition"
+          >
+            Cancel session
+          </button>
+        </div>
+      )}
+
+      {session.status === 'confirmed' && !isMentor && (
+        <RateMentorSection session={session} onRated={onRated} />
+      )}
+    </div>
+  );
+}
+
+SessionCard.propTypes = {
+  session: PropTypes.object.isRequired,
+  currentUserId: PropTypes.string.isRequired,
+  onRespond: PropTypes.func.isRequired,
+  onCancel: PropTypes.func.isRequired,
+  onRated: PropTypes.func.isRequired
+};
+
 export default function Sessions() {
   const { user } = useAuth();
-  const navigate = useNavigate();
   const { socket: socketContext } = useSocket();
   const [sessions, setSessions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [view, setView] = useState('pending');
+  const [cancelTarget, setCancelTarget] = useState(null);
+  const [cancelling, setCancelling] = useState(false);
 
   const fetchSessions = async () => {
+    setError('');
     try {
       const data = await sessionService.getMySessions();
       setSessions(data);
@@ -164,110 +214,110 @@ export default function Sessions() {
 
       fetchSessions();
     } catch (err) {
-      alert(err.response?.data?.message || 'Failed to respond to session');
+      toast.error(err.response?.data?.message || 'Failed to respond to session');
     }
   };
 
-  const handleCancel = async (session) => {
-    if (!confirm('Cancel this session?')) return;
+  const handleCancel = async () => {
+    if (!cancelTarget) return;
+    setCancelling(true);
     try {
-      await sessionService.cancelSession(session._id);
+      await sessionService.cancelSession(cancelTarget._id);
+      setCancelTarget(null);
       fetchSessions();
     } catch (err) {
-      alert(err.response?.data?.message || 'Failed to cancel session');
+      toast.error(err.response?.data?.message || 'Failed to cancel session');
+    } finally {
+      setCancelling(false);
     }
   };
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-[#0f1117] flex items-center justify-center">
-        <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-purple-500"></div>
+  const { pending, upcoming, past } = useMemo(() => {
+    const now = new Date();
+    const groups = { pending: [], upcoming: [], past: [] };
+    for (const session of sessions) {
+      if (session.status === 'pending') {
+        groups.pending.push(session);
+      } else if (session.status === 'confirmed' && new Date(session.slot.startTime) >= now) {
+        groups.upcoming.push(session);
+      } else {
+        groups.past.push(session);
+      }
+    }
+    return groups;
+  }, [sessions]);
+
+  const renderList = (list, emptyBody) =>
+    list.length === 0 ? (
+      <EmptyState icon={FiCalendar} title="Nothing here yet" body={emptyBody} />
+    ) : (
+      <div className="space-y-3">
+        {list.map((session) => (
+          <SessionCard
+            key={session._id}
+            session={session}
+            currentUserId={user._id}
+            onRespond={handleRespond}
+            onCancel={setCancelTarget}
+            onRated={fetchSessions}
+          />
+        ))}
       </div>
     );
-  }
 
   return (
-    <div className="min-h-screen bg-[#0f1117] text-white p-6">
+    <div className="min-h-screen bg-bg text-text p-6">
       <div className="max-w-2xl mx-auto">
         <div className="flex items-center gap-3 mb-6">
-          <button onClick={() => navigate('/')} className="text-gray-400 hover:text-white transition-colors" title="Back to home">
-            <FiArrowLeft size={22} />
-          </button>
-          <FiCalendar className="text-purple-500" size={22} />
-          <h1 className="text-2xl font-bold">My Sessions</h1>
+          <FiCalendar className="text-brand" size={22} />
+          <h1 className="text-h3 font-display font-semibold">My Sessions</h1>
         </div>
 
-        {error && (
-          <div className="bg-red-500/10 border border-red-500 text-red-500 rounded-lg p-3 mb-4 text-sm">{error}</div>
-        )}
-
-        {sessions.length === 0 ? (
-          <div className="bg-[#1a1c23] rounded-xl p-6 text-gray-400">
-            No sessions yet. {user?.role === 'mentee' ? 'Book one from a mentor match on the People page.' : 'Add availability slots so mentees can book a session with you.'}
-          </div>
-        ) : (
+        {loading ? (
           <div className="space-y-3">
-            {sessions.map((session) => {
-              const isMentor = session.mentor._id === user._id;
-              const otherUser = isMentor ? session.mentee : session.mentor;
-
-              return (
-                <div key={session._id} className="bg-[#1a1c23] rounded-xl p-4">
-                  <div className="flex items-start justify-between">
-                    <div className="flex items-center gap-3">
-                      <img
-                        src={getAvatarUrl(otherUser.avatar, otherUser.username)}
-                        alt={otherUser.username}
-                        className="w-10 h-10 rounded-full object-cover"
-                      />
-                      <div>
-                        <h3 className="font-semibold">{otherUser.username}</h3>
-                        <p className="text-sm text-gray-400">{formatSlotTime(session.slot.startTime)}</p>
-                        {session.topic && <p className="text-sm text-gray-500 mt-1">"{session.topic}"</p>}
-                      </div>
-                    </div>
-                    <span className={`text-xs font-semibold px-2 py-1 rounded-full capitalize ${STATUS_STYLES[session.status]}`}>
-                      {session.status}
-                    </span>
-                  </div>
-
-                  {session.status === 'pending' && isMentor && (
-                    <div className="flex gap-2 mt-3">
-                      <button
-                        onClick={() => handleRespond(session, true)}
-                        className="flex items-center gap-1 bg-green-600 hover:bg-green-700 transition px-3 py-1.5 rounded-lg text-sm"
-                      >
-                        <FiCheck size={16} /> Confirm
-                      </button>
-                      <button
-                        onClick={() => handleRespond(session, false)}
-                        className="flex items-center gap-1 bg-[#282c3a] hover:bg-[#323744] transition px-3 py-1.5 rounded-lg text-sm"
-                      >
-                        <FiX size={16} /> Decline
-                      </button>
-                    </div>
-                  )}
-
-                  {(session.status === 'pending' || session.status === 'confirmed') && !(session.status === 'pending' && isMentor) && (
-                    <div className="mt-3">
-                      <button
-                        onClick={() => handleCancel(session)}
-                        className="text-sm text-gray-400 hover:text-red-400 transition"
-                      >
-                        Cancel session
-                      </button>
-                    </div>
-                  )}
-
-                  {session.status === 'confirmed' && !isMentor && (
-                    <RateMentorSection session={session} onRated={fetchSessions} />
-                  )}
-                </div>
-              );
-            })}
+            <Skeleton className="h-9 w-64 mb-2" />
+            <Skeleton className="h-24 w-full rounded-xl" />
+            <Skeleton className="h-24 w-full rounded-xl" />
           </div>
+        ) : error ? (
+          <ErrorState body={error} onRetry={fetchSessions} />
+        ) : sessions.length === 0 ? (
+          <EmptyState
+            icon={FiCalendar}
+            title="No sessions yet"
+            body={user?.role === 'mentee' ? 'Book one from a mentor match on the People page.' : 'Add availability slots so mentees can book a session with you.'}
+          />
+        ) : (
+          <Tabs value={view} onValueChange={setView}>
+            <TabsList className="mb-4">
+              <TabsTrigger value="pending" activeValue={view}>Pending{pending.length > 0 ? ` (${pending.length})` : ''}</TabsTrigger>
+              <TabsTrigger value="upcoming" activeValue={view}>Upcoming{upcoming.length > 0 ? ` (${upcoming.length})` : ''}</TabsTrigger>
+              <TabsTrigger value="past" activeValue={view}>Past</TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="pending">
+              {renderList(pending, user?.role === 'mentee' ? 'No pending requests right now.' : 'No session requests waiting on you.')}
+            </TabsContent>
+            <TabsContent value="upcoming">
+              {renderList(upcoming, 'No confirmed sessions on the calendar yet.')}
+            </TabsContent>
+            <TabsContent value="past">
+              {renderList(past, 'Past and declined sessions will show up here.')}
+            </TabsContent>
+          </Tabs>
         )}
       </div>
+
+      <ConfirmDialog
+        open={!!cancelTarget}
+        onOpenChange={(open) => !open && setCancelTarget(null)}
+        title="Cancel this session?"
+        description="This can't be undone — the other person will be notified."
+        confirmLabel="Cancel session"
+        cancelLabel="Keep session"
+        onConfirm={handleCancel}
+        loading={cancelling}
+      />
     </div>
   );
 }

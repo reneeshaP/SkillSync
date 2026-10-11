@@ -213,7 +213,7 @@ router.get('/users/search', authenticateToken, async (req, res) => {
     const users = await User.find({
       username: { $regex: q.trim(), $options: 'i' },
       _id: { $ne: req.user._id }
-    }).select('username avatar').limit(10);
+    }).select('username avatar role').limit(10);
 
     res.json(users);
   } catch (error) {

@@ -2,8 +2,8 @@ import { useState } from 'react';
 import { FiThumbsUp, FiMessageSquare, FiX, FiEdit2, FiTrash2 } from 'react-icons/fi';
 import { useAuth } from '../context/AuthContext';
 import { postService } from '../services/post.service';
-
-const API_BASE_URL = 'http://localhost:8000';
+import { Avatar } from './ui/Avatar';
+import { ConfirmDialog } from './ui/ConfirmDialog';
 
 const Comment = ({ comment, postId, onUpdate, allowEdit }) => {
     const [showReplyInput, setShowReplyInput] = useState(false);
@@ -12,12 +12,8 @@ const Comment = ({ comment, postId, onUpdate, allowEdit }) => {
     const [editingComment, setEditingComment] = useState(false);
     const [editingReply, setEditingReply] = useState(null);
     const [editContent, setEditContent] = useState('');
+    const [deleteTarget, setDeleteTarget] = useState(null); // null | 'comment' | { replyId }
     const { user } = useAuth();
-
-    const getAvatarUrl = (avatarPath) => {
-        if (!avatarPath) return null;
-        return avatarPath.startsWith('http') ? avatarPath : `${API_BASE_URL}${avatarPath}`;
-    };
 
     const handleLikeComment = async () => {
         try {
@@ -67,13 +63,11 @@ const Comment = ({ comment, postId, onUpdate, allowEdit }) => {
     };
 
     const handleDeleteComment = async () => {
-        if (window.confirm('Are you sure you want to delete this comment?')) {
-            try {
-                await postService.deleteComment(postId, comment._id);
-                onUpdate();
-            } catch (err) {
-                console.error('Error deleting comment:', err);
-            }
+        try {
+            await postService.deleteComment(postId, comment._id);
+            onUpdate();
+        } catch (err) {
+            console.error('Error deleting comment:', err);
         }
     };
 
@@ -94,30 +88,27 @@ const Comment = ({ comment, postId, onUpdate, allowEdit }) => {
     };
 
     const handleDeleteReply = async (replyId) => {
-        if (window.confirm('Are you sure you want to delete this reply?')) {
-            try {
-                await postService.deleteReply(postId, comment._id, replyId);
-                onUpdate();
-            } catch (err) {
-                console.error('Error deleting reply:', err);
-            }
+        try {
+            await postService.deleteReply(postId, comment._id, replyId);
+            onUpdate();
+        } catch (err) {
+            console.error('Error deleting reply:', err);
         }
+    };
+
+    const handleConfirmDelete = () => {
+        if (deleteTarget === 'comment') {
+            handleDeleteComment();
+        } else if (deleteTarget?.replyId) {
+            handleDeleteReply(deleteTarget.replyId);
+        }
+        setDeleteTarget(null);
     };
 
     return (
         <div className="space-y-3">
             <div className="flex items-start gap-3 bg-[#282c3a] p-3 rounded-lg">
-                {comment.userId.avatar ? (
-                    <img
-                        src={getAvatarUrl(comment.userId.avatar)}
-                        alt={comment.userId.username}
-                        className="w-8 h-8 rounded-full object-cover"
-                    />
-                ) : (
-                    <div className="w-8 h-8 bg-purple-700 rounded-full flex items-center justify-center text-sm font-semibold">
-                        {comment.userId.username.substring(0, 2).toUpperCase()}
-                    </div>
-                )}
+                <Avatar src={comment.userId.avatar} name={comment.userId.username} userId={comment.userId._id} size="sm" />
                 <div className="flex-1">
                     <div className="flex items-center justify-between">
                         <h4 className="font-semibold text-sm">{comment.userId.username}</h4>
@@ -129,12 +120,14 @@ const Comment = ({ comment, postId, onUpdate, allowEdit }) => {
                                 <div className="flex items-center gap-2">
                                     <button
                                         onClick={handleEditComment}
+                                        aria-label={editingComment ? 'Save comment' : 'Edit comment'}
                                         className="p-1 text-gray-400 hover:text-white"
                                     >
                                         <FiEdit2 size={14} />
                                     </button>
                                     <button
-                                        onClick={handleDeleteComment}
+                                        onClick={() => setDeleteTarget('comment')}
+                                        aria-label="Delete comment"
                                         className="p-1 text-gray-400 hover:text-red-500"
                                     >
                                         <FiTrash2 size={14} />
@@ -222,6 +215,7 @@ const Comment = ({ comment, postId, onUpdate, allowEdit }) => {
                             setShowReplyInput(false);
                             setReplyText('');
                         }}
+                        aria-label="Cancel reply"
                         className="bg-gray-700 text-white p-2 rounded-lg hover:bg-gray-600 transition"
                     >
                         <FiX size={16} />
@@ -234,17 +228,7 @@ const Comment = ({ comment, postId, onUpdate, allowEdit }) => {
                 <div className="ml-8 space-y-2">
                     {comment.replies.map((reply, index) => (
                         <div key={index} className="flex items-start gap-2 bg-[#1a1c23] p-2 rounded-lg">
-                            {reply.userId.avatar ? (
-                                <img
-                                    src={getAvatarUrl(reply.userId.avatar)}
-                                    alt={reply.userId.username}
-                                    className="w-6 h-6 rounded-full object-cover"
-                                />
-                            ) : (
-                                <div className="w-6 h-6 bg-purple-700 rounded-full flex items-center justify-center text-xs font-semibold">
-                                    {reply.userId.username.substring(0, 2).toUpperCase()}
-                                </div>
-                            )}
+                            <Avatar src={reply.userId.avatar} name={reply.userId.username} userId={reply.userId._id} size="xs" />
                             <div className="flex-1">
                                 <div className="flex items-center justify-between">
                                     <h4 className="text-xs font-semibold">{reply.userId.username}</h4>
@@ -256,12 +240,14 @@ const Comment = ({ comment, postId, onUpdate, allowEdit }) => {
                                             <div className="flex items-center gap-1">
                                                 <button
                                                     onClick={() => handleEditReply(reply._id)}
+                                                    aria-label={editingReply === reply._id ? 'Save reply' : 'Edit reply'}
                                                     className="p-1 text-gray-400 hover:text-white"
                                                 >
                                                     <FiEdit2 size={12} />
                                                 </button>
                                                 <button
-                                                    onClick={() => handleDeleteReply(reply._id)}
+                                                    onClick={() => setDeleteTarget({ replyId: reply._id })}
+                                                    aria-label="Delete reply"
                                                     className="p-1 text-gray-400 hover:text-red-500"
                                                 >
                                                     <FiTrash2 size={12} />
@@ -311,8 +297,17 @@ const Comment = ({ comment, postId, onUpdate, allowEdit }) => {
                     ))}
                 </div>
             )}
+
+            <ConfirmDialog
+                open={!!deleteTarget}
+                onOpenChange={(open) => !open && setDeleteTarget(null)}
+                title={deleteTarget === 'comment' ? 'Delete this comment?' : 'Delete this reply?'}
+                description="This can't be undone."
+                confirmLabel="Delete"
+                onConfirm={handleConfirmDelete}
+            />
         </div>
     );
 };
 
-export default Comment; 
+export default Comment;

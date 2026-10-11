@@ -46,16 +46,16 @@ export const CameraCapture = ({ onCapture, onClose }) => {
 
   return (
     <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50">
-      <div className="bg-slate-800 rounded-xl p-4 max-w-lg w-full mx-4">
+      <div className="bg-surface-raised border border-border rounded-xl p-4 max-w-lg w-full mx-4">
         <div className="flex items-center justify-between mb-3">
-          <h3 className="text-white font-medium">Take a photo</h3>
-          <button onClick={onClose} className="text-slate-400 hover:text-white">
+          <h3 className="text-text font-medium">Take a photo</h3>
+          <button onClick={onClose} className="text-text-muted hover:text-text">
             <X size={22} />
           </button>
         </div>
 
         {error ? (
-          <p className="text-red-400 text-sm p-4">{error}</p>
+          <p className="text-danger text-sm p-4">{error}</p>
         ) : (
           <video
             ref={videoRef}
@@ -69,7 +69,7 @@ export const CameraCapture = ({ onCapture, onClose }) => {
           <button
             onClick={handleCapture}
             disabled={!!error}
-            className="bg-purple-600 hover:bg-purple-700 disabled:opacity-50 text-white rounded-full p-4 transition-colors"
+            className="bg-brand hover:bg-brand-hover disabled:opacity-50 text-brand-fg rounded-full p-4 transition-colors"
             title="Capture"
           >
             <CameraIcon size={24} />

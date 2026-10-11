@@ -52,7 +52,7 @@ router.get('/availability/:mentorId', authenticateToken, async (req, res) => {
     const slots = await AvailabilitySlot.find({
       mentor: req.params.mentorId,
       status: 'open',
-      startTime: { $gte: new Date() }
+      endTime: { $gt: new Date() }
     }).sort({ startTime: 1 });
     res.json(slots);
   } catch (err) {

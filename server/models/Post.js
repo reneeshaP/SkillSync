@@ -115,21 +115,6 @@ const postSchema = new mongoose.Schema({
   versionKey: false // Disable the version key
 });
 
-// Remove any existing indexes including description_1
-postSchema.index({}, { sparse: true });
-
 const Post = mongoose.model("Post", postSchema);
-
-// Drop both problematic indexes when the application starts
-const dropIndexes = async () => {
-  try {
-    await Post.collection.dropIndexes();
-    console.log('Successfully dropped all indexes');
-  } catch (err) {
-    console.error('Error dropping indexes:', err);
-  }
-};
-
-dropIndexes();
 
 export default Post;

@@ -2,9 +2,43 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <link rel="icon" type="image/png" href="/logo.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="dark light" />
     <title>SkillSync</title>
+    <meta name="description" content="SkillSync matches mentors and mentees by skills and goals with AI-driven matching, then gets you straight to scheduled sessions and real-time chat." />
+
+    <!-- Open Graph -->
+    <meta property="og:title" content="SkillSync — Get matched with the mentor who fits you" />
+    <meta property="og:description" content="AI-driven skill matching, scheduled sessions, and real-time chat between mentors and mentees." />
+    <meta property="og:type" content="website" />
+    <meta property="og:image" content="/logo.png" />
+
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@600;700;800&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
+
+    <!-- Sets the theme class before React mounts, so there is no flash of the
+         wrong theme. Dark is the default: only an explicit "light" choice (or
+         a "system" choice that currently resolves to light) skips it. -->
+    <script>
+      (function () {
+        try {
+          var stored = localStorage.getItem('skillsync-theme');
+          var prefersLight = window.matchMedia('(prefers-color-scheme: light)').matches;
+          var isLight = stored === 'light' || (stored === 'system' && prefersLight);
+          if (!isLight) {
+            document.documentElement.classList.add('dark');
+          }
+        } catch (e) {
+          document.documentElement.classList.add('dark');
+        }
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

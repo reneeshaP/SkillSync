@@ -22,7 +22,7 @@ const upload = multer({ storage: storage });
 // Get all posts with populated comments and replies
 router.get('/', authenticateToken, async (req, res) => {
     try {
-        const posts = await Post.find()
+        const posts = await Post.find({ isDeleted: false })
             .populate('userId', 'username avatar')
             .populate({
                 path: 'comments',
@@ -334,7 +334,7 @@ router.post('/:id/share', authenticateToken, async (req, res) => {
 // Get saved posts for a user
 router.get('/saved', authenticateToken, async (req, res) => {
     try {
-        const savedPosts = await Post.find({ savedBy: req.user.id })
+        const savedPosts = await Post.find({ savedBy: req.user.id, isDeleted: false })
             .populate('userId', 'username avatar')
             .populate('comments.userId', 'username avatar')
             .sort({ createdAt: -1 });

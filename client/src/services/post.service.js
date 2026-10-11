@@ -17,7 +17,7 @@ export const postService = {
                     if (!Array.isArray(tags)) {
                         throw new Error('Tags must be an array');
                     }
-                } catch (e) {
+                } catch {
                     throw new Error('Invalid tags format');
                 }
             }

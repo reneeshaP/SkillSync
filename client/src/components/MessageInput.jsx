@@ -2,6 +2,8 @@ import { useRef, useState } from 'react';
 import PropTypes from 'prop-types';
 import { Paperclip, Mic, Camera, Square } from 'lucide-react';
 import CameraCapture from './CameraCapture';
+import { IconButton } from './ui/IconButton';
+import { toast } from './ui/Toast';
 
 const MAX_ATTACHMENT_MB = 20;
 
@@ -42,7 +44,7 @@ export const MessageInput = ({ onSendMessage, onTyping, onSendAttachment }) => {
     if (!file) return;
 
     if (file.size > MAX_ATTACHMENT_MB * 1024 * 1024) {
-      alert(`File is too large — max ${MAX_ATTACHMENT_MB}MB`);
+      toast.error(`File is too large — max ${MAX_ATTACHMENT_MB}MB`);
       return;
     }
     onSendAttachment(file);
@@ -76,7 +78,7 @@ export const MessageInput = ({ onSendMessage, onTyping, onSendAttachment }) => {
       setRecordSeconds(0);
       recordTimerRef.current = setInterval(() => setRecordSeconds(s => s + 1), 1000);
     } catch (err) {
-      alert('Could not access microphone: ' + err.message);
+      toast.error('Could not access microphone: ' + err.message);
     }
   };
 
@@ -89,12 +91,12 @@ export const MessageInput = ({ onSendMessage, onTyping, onSendAttachment }) => {
   const formatSeconds = (s) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 
   return (
-    <div className="p-4 border-t border-slate-700">
+    <div className="p-4 border-t border-border shrink-0">
       {showCamera && (
         <CameraCapture onCapture={handleCameraCapture} onClose={() => setShowCamera(false)} />
       )}
 
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-2">
         <input
           ref={fileInputRef}
           type="file"
@@ -103,29 +105,17 @@ export const MessageInput = ({ onSendMessage, onTyping, onSendAttachment }) => {
           onChange={handleFileSelected}
         />
 
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => fileInputRef.current?.click()}
-            className="hover:bg-slate-600 p-2 rounded-full transition-colors"
-            title="Attach file"
-          >
-            <Paperclip className="text-slate-400 w-5 h-5 cursor-pointer hover:text-white transition-colors" />
-          </button>
-        </div>
+        <IconButton aria-label="Attach file" onClick={() => fileInputRef.current?.click()}>
+          <Paperclip size={20} />
+        </IconButton>
 
         {isRecording ? (
-          <div className="flex-1 flex items-center gap-3 bg-slate-700 border border-red-500 rounded-lg py-2 px-4">
-            <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
-            <span className="text-white text-sm">Recording... {formatSeconds(recordSeconds)}</span>
-            <button
-              type="button"
-              onClick={stopRecording}
-              className="ml-auto text-red-400 hover:text-red-300"
-              title="Stop and send"
-            >
+          <div className="flex-1 flex items-center gap-3 bg-surface-raised border border-danger rounded-lg py-2 px-4">
+            <span className="w-2 h-2 rounded-full bg-danger animate-pulse" />
+            <span className="text-text text-sm">Recording... {formatSeconds(recordSeconds)}</span>
+            <IconButton aria-label="Stop and send" onClick={stopRecording} className="ml-auto text-danger hover:text-danger">
               <Square size={18} />
-            </button>
+            </IconButton>
           </div>
         ) : (
           <div className="flex-1 relative">
@@ -135,25 +125,15 @@ export const MessageInput = ({ onSendMessage, onTyping, onSendAttachment }) => {
               onChange={handleChange}
               onKeyPress={handleKeyPress}
               placeholder="Type something..."
-              className="w-full bg-slate-700 border border-slate-600 rounded-lg py-2 px-4 text-white placeholder:text-slate-400 pr-20 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full bg-surface-raised border border-border rounded-lg py-2 px-4 text-text placeholder-text-subtle pr-20 focus:outline-none focus:ring-2 focus:ring-ring"
             />
-            <div className="absolute right-2 top-1/2 transform -translate-y-1/2 flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => setShowCamera(true)}
-                className="hover:bg-slate-600 p-2 rounded-full transition-colors"
-                title="Send photo"
-              >
-                <Camera className="text-slate-400 w-5 h-5 cursor-pointer hover:text-white transition-colors" />
-              </button>
-              <button
-                type="button"
-                onClick={startRecording}
-                className="hover:bg-slate-600 p-2 rounded-full transition-colors"
-                title="Voice message"
-              >
-                <Mic className="text-slate-400 w-5 h-5 cursor-pointer hover:text-white transition-colors" />
-              </button>
+            <div className="absolute right-1 top-1/2 -translate-y-1/2 flex items-center gap-1">
+              <IconButton aria-label="Send photo" onClick={() => setShowCamera(true)} className="h-8 w-8">
+                <Camera size={18} />
+              </IconButton>
+              <IconButton aria-label="Voice message" onClick={startRecording} className="h-8 w-8">
+                <Mic size={18} />
+              </IconButton>
             </div>
           </div>
         )}

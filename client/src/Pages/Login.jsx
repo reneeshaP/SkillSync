@@ -1,55 +1,76 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import { FiEye, FiEyeOff } from "react-icons/fi";
 import { GoogleLogin } from "@react-oauth/google";
 import { useAuth } from "../context/AuthContext";
 import { authService } from "../services/auth.service";
+import { useTheme } from "../contexts/ThemeContext";
+import AuthLayout from "../components/auth/AuthLayout";
+import { Card } from "../components/ui/Card";
+import { FormField } from "../components/ui/FormField";
+import { Input } from "../components/ui/Input";
+import { Button } from "../components/ui/Button";
+import { toast } from "../components/ui/Toast";
+
+const PANEL_POINTS = [
+  "Matched on skills, not keywords",
+  "Real-time chat and scheduled sessions",
+  "Free while in beta",
+];
 
 const Login = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [error, setError] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [touched, setTouched] = useState({});
+  const [submitting, setSubmitting] = useState(false);
   const { setUser } = useAuth();
+  const { resolvedTheme } = useTheme();
   const navigate = useNavigate();
+
+  const emailError = touched.email && !email.trim() ? "Email is required." : "";
+  const passwordError = touched.password && !password ? "Password is required." : "";
 
   const handlesubmit = async (e) => {
     e.preventDefault();
-    setError("");
+    setTouched({ email: true, password: true });
+    if (!email.trim() || !password) return;
 
+    setSubmitting(true);
     try {
       const data = await authService.login(email, password);
       localStorage.setItem("token", data.token);
       setUser(data.user);
-      navigate("/");
+      navigate("/feed");
     } catch (error) {
-      setError(error.response?.data?.message || "Failed to login");
+      toast.error(error.response?.data?.message || "Failed to login");
       console.error("Login error:", error);
+      setSubmitting(false);
     }
   };
 
   const handleGoogleSuccess = async (credentialResponse) => {
-    setError("");
     try {
       const data = await authService.googleAuth(credentialResponse.credential);
       localStorage.setItem("token", data.token);
       setUser(data.user);
-      navigate(data.user.roleConfirmed ? "/" : "/choose-role");
+      navigate(data.user.roleConfirmed ? "/feed" : "/choose-role");
     } catch (error) {
-      setError(error.message || "Failed to sign in with Google");
+      toast.error(error.message || "Failed to sign in with Google");
     }
   };
 
   return (
-    <div className="h-screen bg-zinc-950 flex items-center justify-center p-4">
-      <div className="w-full max-w-md bg-zinc-900 text-white p-8 rounded-3xl shadow-md space-y-6">
-        <h2 className="text-3xl font-bold text-center">Login to your account</h2>
-        {error && (
-          <div className="bg-red-500/10 border border-red-500 text-red-500 rounded-lg p-3 text-sm">
-            {error}
-          </div>
-        )}
-        <p className="text-center text-zinc-400 text-sm">
+    <AuthLayout
+      panelTitle="Get matched with the mentor who actually fits you."
+      panelSubtitle="SkillSync pairs mentors and mentees by skills and goals, then gets you straight to scheduled sessions and real-time chat."
+      panelPoints={PANEL_POINTS}
+    >
+      <Card raised className="w-full max-w-md p-8 space-y-6">
+        <h2 className="text-h3 font-display font-bold text-text text-center">Login to your account</h2>
+        <p className="text-center text-text-muted text-body-sm">
           Don't have an account?{" "}
-          <Link to="/signup" className="text-purple-400 hover:underline">
+          <Link to="/signup" className="text-brand hover:underline">
             Sign up
           </Link>
         </p>
@@ -57,57 +78,61 @@ const Login = () => {
         <div className="flex justify-center">
           <GoogleLogin
             onSuccess={handleGoogleSuccess}
-            onError={() => setError("Google sign-in failed")}
-            theme="filled_black"
+            onError={() => toast.error("Google sign-in failed")}
+            theme={resolvedTheme === "light" ? "outline" : "filled_black"}
           />
         </div>
 
         <div className="flex items-center gap-3">
-          <div className="flex-1 h-px bg-zinc-800" />
-          <span className="text-xs text-zinc-500">OR</span>
-          <div className="flex-1 h-px bg-zinc-800" />
+          <div className="flex-1 h-px bg-border" />
+          <span className="text-caption text-text-subtle">OR</span>
+          <div className="flex-1 h-px bg-border" />
         </div>
 
-        <form onSubmit={handlesubmit} className="space-y-4">
-          <div>
-            <label htmlFor="email" className="block text-sm font-medium mb-2">
-              Email
-            </label>
-            <input
+        <form onSubmit={handlesubmit} className="space-y-4" noValidate>
+          <FormField label="Email" htmlFor="email" required error={emailError}>
+            <Input
               type="email"
               id="email"
               name="email"
               autoComplete="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="w-full px-3 py-2 bg-zinc-800 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
-              required
+              onBlur={() => setTouched((prev) => ({ ...prev, email: true }))}
+              aria-describedby={emailError ? "email-error" : undefined}
             />
-          </div>
-          <div>
-            <label htmlFor="password" className="block text-sm font-medium mb-2">
-              Password
-            </label>
-            <input
-              type="password"
-              id="password"
-              name="password"
-              autoComplete="current-password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="w-full px-3 py-2 bg-zinc-800 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
-              required
-            />
-          </div>
-          <button
-            type="submit"
-            className="w-full bg-purple-600 text-white py-2 px-4 rounded-lg hover:bg-purple-700 transition duration-200"
-          >
+          </FormField>
+
+          <FormField label="Password" htmlFor="password" required error={passwordError}>
+            <div className="relative">
+              <Input
+                type={showPassword ? "text" : "password"}
+                id="password"
+                name="password"
+                autoComplete="current-password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                onBlur={() => setTouched((prev) => ({ ...prev, password: true }))}
+                className="pr-10"
+                aria-describedby={passwordError ? "password-error" : undefined}
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword((prev) => !prev)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-text-subtle hover:text-text"
+                aria-label={showPassword ? "Hide password" : "Show password"}
+              >
+                {showPassword ? <FiEyeOff size={18} /> : <FiEye size={18} />}
+              </button>
+            </div>
+          </FormField>
+
+          <Button type="submit" variant="primary" className="w-full" loading={submitting}>
             Login
-          </button>
+          </Button>
         </form>
-      </div>
-    </div>
+      </Card>
+    </AuthLayout>
   );
 };
 

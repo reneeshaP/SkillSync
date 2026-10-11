@@ -3,10 +3,11 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
 import { useSocket } from '../contexts/SocketContext';
-import { FiMessageCircle } from 'react-icons/fi';
+import { MessageCircle } from 'lucide-react';
 import ChatArea from '../components/ChatArea';
 import MessageSidebar from '../components/MessageSidebar';
-import ConnectionRequestPopup from '../components/ConnectionRequestPopup';
+import { EmptyState } from '../components/ui/EmptyState';
+import { toast } from '../components/ui/Toast';
 
 const ChatPage = () => {
   const navigate = useNavigate();
@@ -23,6 +24,8 @@ const ChatPage = () => {
   const [chatId, setChatId] = useState(null);
   const [selectedContact, setSelectedContact] = useState('');
   const [pendingRequests, setPendingRequests] = useState([]);
+  // Mobile-only list↔thread navigation; desktop always shows both panes regardless of this.
+  const [mobileView, setMobileView] = useState('list');
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -288,6 +291,7 @@ const ChatPage = () => {
       }
 
       setCurrentChat(conversation);
+      setMobileView('thread');
 
       const token = localStorage.getItem('token');
 
@@ -331,6 +335,7 @@ const ChatPage = () => {
         console.log('Found existing conversation:', existingConv);
         setCurrentChat(existingConv);
         setSelectedContact(existingConv.otherUser.username);
+        setMobileView('thread');
         return;
       }
 
@@ -358,7 +363,7 @@ const ChatPage = () => {
       }
 
       // Show confirmation to sender
-      alert(`Connection request sent to ${username || 'user'}! Please wait for them to accept.`);
+      toast.success(`Connection request sent to ${username || 'user'}! Please wait for them to accept.`);
       setIsSearching(false);
       setSearchQuery('');
       setSearchResults([]);
@@ -374,7 +379,7 @@ const ChatPage = () => {
         errorMessage = 'Server not responding. Please try again later.';
       }
       
-      alert(errorMessage);
+      toast.error(errorMessage);
       setIsSearching(false);
       setSearchQuery('');
       setSearchResults([]);
@@ -418,6 +423,7 @@ const ChatPage = () => {
         // Set current chat — the messages/join-room effect picks this up automatically
         setCurrentChat(newConversation);
         setSelectedContact(newConversation.otherUser.username);
+        setMobileView('thread');
       }
 
       // Remove from pending requests
@@ -439,8 +445,10 @@ const ChatPage = () => {
     return null;
   }
 
+  const showThread = mobileView === 'thread';
+
   return (
-    <div className="flex h-screen bg-[#0f1117]">
+    <div className="flex h-[calc(100dvh-8.5rem)] lg:h-screen bg-bg">
       {/* Message Sidebar */}
       <MessageSidebar
         selectedContact={selectedContact}
@@ -454,52 +462,33 @@ const ChatPage = () => {
           setSearchQuery(value);
           setIsSearching(value.trim().length > 0);
         }}
+        isSearching={isSearching}
+        searchResults={searchResults}
+        onSelectSearchResult={initiateChat}
+        mobileHidden={showThread}
       />
 
-      {/* Search Results Dropdown */}
-      {isSearching && searchResults.length > 0 && (
-        <div className="absolute left-80 top-0 w-64 bg-[#1a1c23] rounded-lg shadow-lg mt-2 z-50">
-          {searchResults.map((user) => (
-            <div
-              key={user._id}
-              className="p-3 hover:bg-[#282c3a] cursor-pointer"
-              onClick={() => initiateChat(user._id, user.username)}
-            >
-              <div className="flex items-center gap-3">
-                <img
-                  src={user.avatar || "default-avatar.png"}
-                  alt={user.username}
-                  className="w-8 h-8 rounded-full"
-                />
-                <span className="text-white">{user.username}</span>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-
       {/* Main Chat Area */}
-      {currentChat ? (
-        <ChatArea
-          contactName={currentChat.otherUser?.username}
-          contactImage={currentChat.otherUser?.avatar}
-          contactUserId={currentChat.otherUser?._id}
-          isTyping={isTyping}
-          currentUser={user}
-          onSendMessage={handleSendMessage}
-          onSendAttachment={handleSendAttachment}
-          messages={messages}
-          currentUserId={user._id}
-          onTyping={handleTypingIndicator}
-        />
-      ) : (
-        <div className="flex-1 flex items-center justify-center bg-[#1a1c23]">
-          <div className="text-center">
-            <FiMessageCircle className="text-gray-400 mx-auto mb-4" size={48} />
-            <p className="text-gray-400">Select a chat to start messaging</p>
+      <div className={`${showThread ? 'flex' : 'hidden'} lg:flex flex-1 min-h-0`}>
+        {currentChat ? (
+          <ChatArea
+            contactName={currentChat.otherUser?.username}
+            contactImage={currentChat.otherUser?.avatar}
+            contactUserId={currentChat.otherUser?._id}
+            isTyping={isTyping}
+            currentUser={user}
+            onSendMessage={handleSendMessage}
+            onSendAttachment={handleSendAttachment}
+            messages={messages}
+            onTyping={handleTypingIndicator}
+            onBack={() => setMobileView('list')}
+          />
+        ) : (
+          <div className="flex-1 flex items-center justify-center bg-bg">
+            <EmptyState icon={MessageCircle} title="Select a chat" body="Pick a conversation from the list to start messaging." />
           </div>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 };

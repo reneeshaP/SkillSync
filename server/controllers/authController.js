@@ -49,6 +49,7 @@ export const registerUser = async (req, res) => {
         username: user.username,
         email: user.email,
         role: user.role,
+        profileCompleted: user.profileCompleted,
       },
     });
 
@@ -90,6 +91,7 @@ export const loginUser = async (req, res) => {
         username: user.username,
         email: user.email,
         role: user.role,
+        profileCompleted: user.profileCompleted,
       },
     });
 
@@ -156,6 +158,7 @@ export const googleAuth = async (req, res) => {
         role: user.role,
         avatar: user.avatar,
         roleConfirmed: user.roleConfirmed,
+        profileCompleted: user.profileCompleted,
       },
     });
   } catch (error) {

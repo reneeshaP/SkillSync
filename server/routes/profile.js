@@ -8,6 +8,7 @@ import { fileURLToPath } from 'url';
 import { dirname } from 'path';
 import { changePassword } from '../controllers/profileController.js';
 import { updateUserEmbedding } from '../services/embedding.service.js';
+import Chat from '../models/Chat.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -45,6 +46,25 @@ const uploadConfig = multer({
     fileFilter: fileFilter
 });
 
+const resumeFileFilter = (req, file, cb) => {
+    const extname = path.extname(file.originalname).toLowerCase() === '.pdf';
+    const mimetype = file.mimetype === 'application/pdf';
+
+    if (extname && mimetype) {
+        return cb(null, true);
+    } else {
+        cb(new Error('Only PDF files are allowed!'), false);
+    }
+};
+
+const resumeUploadConfig = multer({
+    storage: storage,
+    limits: {
+        fileSize: 5 * 1024 * 1024 // 5MB limit
+    },
+    fileFilter: resumeFileFilter
+});
+
 // Protected routes - require authentication
 router.get("/", authenticateToken, async (req, res) => {
     try {
@@ -62,7 +82,16 @@ router.put("/", authenticateToken, async (req, res) => {
     try {
         const updates = req.body;
         delete updates.password; // Don't allow password updates through this route
-        
+
+        // Skills/bio feed the AI matching embedding — don't let an edit silently
+        // blank them out once a profile has been completed via onboarding.
+        if ('skills' in updates && (!Array.isArray(updates.skills) || updates.skills.filter(s => s && s.trim()).length === 0)) {
+            return res.status(400).json({ message: "Skills cannot be empty" });
+        }
+        if ('bio' in updates && !updates.bio?.trim()) {
+            return res.status(400).json({ message: "Bio cannot be empty" });
+        }
+
         const user = await User.findByIdAndUpdate(
             req.user.id,
             { $set: updates },
@@ -86,6 +115,47 @@ router.put("/", authenticateToken, async (req, res) => {
     }
 });
 
+// Mandatory post-signup step — collects the fields the AI mentor-matching
+// embedding actually needs, and is the only thing that can set profileCompleted.
+router.put("/complete-onboarding", authenticateToken, async (req, res) => {
+    try {
+        const { skills, bio, experience, socialLinks } = req.body;
+
+        if (!Array.isArray(skills) || skills.filter(s => s && s.trim()).length === 0) {
+            return res.status(400).json({ message: "Please add at least one skill" });
+        }
+        if (!bio?.trim()) {
+            return res.status(400).json({ message: "Please add a short bio" });
+        }
+
+        const user = await User.findByIdAndUpdate(
+            req.user.id,
+            {
+                $set: {
+                    skills,
+                    bio,
+                    experience: experience || '',
+                    socialLinks: socialLinks || {},
+                    profileCompleted: true,
+                }
+            },
+            { new: true }
+        ).select("-password");
+
+        if (user) {
+            try {
+                await updateUserEmbedding(user);
+            } catch (embeddingError) {
+                console.error('Error updating embedding:', embeddingError.message);
+            }
+        }
+
+        res.json(user);
+    } catch (err) {
+        res.status(500).json({ message: "Error completing onboarding", error: err.message });
+    }
+});
+
 router.put("/avatar", authenticateToken, uploadConfig.single('avatar'), async (req, res) => {
     try {
         if (!req.file) {
@@ -105,7 +175,47 @@ router.put("/avatar", authenticateToken, uploadConfig.single('avatar'), async (r
     }
 });
 
+router.put("/resume", authenticateToken, resumeUploadConfig.single('resume'), async (req, res) => {
+    try {
+        if (!req.file) {
+            return res.status(400).json({ message: "No file uploaded" });
+        }
+
+        const resumeUrl = `/uploads/${req.file.filename}`;
+        const user = await User.findByIdAndUpdate(
+            req.user.id,
+            { $set: { resume: { url: resumeUrl, filename: req.file.originalname } } },
+            { new: true }
+        ).select("-password");
+
+        res.json(user);
+    } catch (err) {
+        res.status(500).json({ message: "Error uploading resume" });
+    }
+});
+
 // Change password route
 router.put("/change-password", authenticateToken, changePassword);
+
+// Public-ish view of another user's profile — deliberately excludes
+// email/phone/address/embedding. Kept last so it doesn't shadow the
+// literal routes above (e.g. "/avatar" would otherwise match ":id").
+router.get("/:id", authenticateToken, async (req, res) => {
+    try {
+        const user = await User.findById(req.params.id)
+            .select("username avatar bio skills experience role socialLinks resume averageRating reviewCount");
+        if (!user) {
+            return res.status(404).json({ message: "User not found" });
+        }
+
+        // A Chat only ever exists between two users once they've connected
+        // (created on request acceptance), so its presence is the "connected" signal.
+        const existingChat = await Chat.findOne({ members: { $all: [req.user.id, req.params.id] } });
+
+        res.json({ ...user.toObject(), isConnected: !!existingChat });
+    } catch (err) {
+        res.status(500).json({ message: "Error fetching profile" });
+    }
+});
 
 export default router;

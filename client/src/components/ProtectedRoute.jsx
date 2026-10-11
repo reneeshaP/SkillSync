@@ -16,6 +16,13 @@ const ProtectedRoute = ({ children }) => {
     return <Navigate to="/choose-role" replace />;
   }
 
+  // Match quality depends on skills/bio being filled in — gate everyone
+  // until onboarding is done. `!== true` (not `=== false`) so a user object
+  // missing the field (e.g. an older cached session) is treated as incomplete.
+  if (user?.roleConfirmed !== false && user?.profileCompleted !== true && location.pathname !== '/onboarding') {
+    return <Navigate to="/onboarding" replace />;
+  }
+
   return children;
 };
 

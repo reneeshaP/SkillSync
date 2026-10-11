@@ -4,7 +4,24 @@ class NotificationService {
     constructor() {
         this.notifications = [];
         this.handlers = new Set();
+        this.notifiedAvailableMentors = new Set();
         this.setupSocketListeners();
+    }
+
+    // Fired when a mentee's matched-mentor list loads and a mentor currently has
+    // an open slot. Deduped per mentor for the lifetime of this browser session
+    // so it doesn't re-fire every time the mentee revisits Home/People.
+    notifyMentorAvailable(mentor) {
+        if (this.notifiedAvailableMentors.has(mentor._id)) return;
+        this.notifiedAvailableMentors.add(mentor._id);
+        this.addNotification({
+            type: 'MENTOR_AVAILABLE',
+            data: {
+                senderName: mentor.username,
+                mentorId: mentor._id,
+                timestamp: Date.now()
+            }
+        });
     }
 
     getCurrentUserId() {
@@ -73,6 +90,17 @@ class NotificationService {
                 type: sessionData?.status === 'confirmed' ? 'SESSION_CONFIRMED' : 'SESSION_DECLINED',
                 data: {
                     senderName: sessionData?.mentor?.username,
+                    timestamp: Date.now()
+                }
+            });
+        });
+
+        socketService.on('profileViewed', (viewData) => {
+            this.addNotification({
+                type: 'PROFILE_VIEW',
+                data: {
+                    viewerId: viewData?.viewerId,
+                    senderName: viewData?.viewerName,
                     timestamp: Date.now()
                 }
             });
@@ -149,6 +177,14 @@ class NotificationService {
             case 'SESSION_DECLINED':
                 title = 'Session Declined';
                 body = `${notification.data.senderName} declined your session request`;
+                break;
+            case 'PROFILE_VIEW':
+                title = 'Profile Viewed';
+                body = `${notification.data.senderName} viewed your profile`;
+                break;
+            case 'MENTOR_AVAILABLE':
+                title = 'Mentor Available';
+                body = `${notification.data.senderName} is available right now`;
                 break;
             default:
                 title = 'New Notification';

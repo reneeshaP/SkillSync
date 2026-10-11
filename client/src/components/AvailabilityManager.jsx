@@ -1,16 +1,19 @@
 import { useEffect, useState } from 'react';
-import { Trash2, Plus } from 'lucide-react';
+import { Trash2, Plus, Clock } from 'lucide-react';
 import { sessionService } from '../services/session.service';
-
-const formatSlotTime = (isoString) => {
-  const date = new Date(isoString);
-  return date.toLocaleString([], { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
-};
+import { formatRelativeSlot } from '../lib/datetime';
+import { Button } from './ui/Button';
+import { IconButton } from './ui/IconButton';
+import { Badge } from './ui/Badge';
+import { Skeleton } from './ui/Skeleton';
+import { EmptyState } from './ui/EmptyState';
+import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from './ui/Tooltip';
 
 export default function AvailabilityManager() {
   const [slots, setSlots] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [date, setDate] = useState('');
   const [startTime, setStartTime] = useState('');
   const [endTime, setEndTime] = useState('');
 
@@ -32,10 +35,19 @@ export default function AvailabilityManager() {
   const handleAddSlot = async (e) => {
     e.preventDefault();
     setError('');
-    if (!startTime || !endTime) return;
+    if (!date || !startTime || !endTime) return;
+
+    const startISO = new Date(`${date}T${startTime}`).toISOString();
+    const endISO = new Date(`${date}T${endTime}`).toISOString();
+
+    if (endISO <= startISO) {
+      setError('End time must be after start time');
+      return;
+    }
 
     try {
-      await sessionService.addAvailability(new Date(startTime).toISOString(), new Date(endTime).toISOString());
+      await sessionService.addAvailability(startISO, endISO);
+      setDate('');
       setStartTime('');
       setEndTime('');
       fetchSlots();
@@ -54,71 +66,96 @@ export default function AvailabilityManager() {
   };
 
   if (loading) {
-    return <div className="text-gray-400 text-sm">Loading availability...</div>;
+    return (
+      <div className="space-y-2">
+        <Skeleton className="h-10 w-48 mb-4" />
+        <Skeleton className="h-24 w-full rounded-lg" />
+        <Skeleton className="h-14 w-full rounded-lg" />
+        <Skeleton className="h-14 w-full rounded-lg" />
+      </div>
+    );
   }
 
   return (
+    <TooltipProvider delayDuration={300}>
     <div>
-      <h1 className="text-2xl font-bold mb-6">My Availability</h1>
+      <h1 className="text-h3 font-display font-semibold text-text mb-6">My Availability</h1>
 
       {error && (
-        <div className="bg-red-500/10 border border-red-500 text-red-500 rounded-lg p-3 mb-4 text-sm">
+        <div className="bg-danger/10 border border-danger text-danger rounded-lg p-3 mb-4 text-body-sm">
           {error}
         </div>
       )}
 
-      <form onSubmit={handleAddSlot} className="flex flex-wrap items-end gap-3 mb-6 bg-[#282c3a] rounded-lg p-4">
-        <div>
-          <label className="block text-sm text-gray-300 mb-1">Start</label>
-          <input
-            type="datetime-local"
-            value={startTime}
-            onChange={(e) => setStartTime(e.target.value)}
-            required
-            className="bg-[#1a1c23] rounded-lg px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
-          />
+      <form onSubmit={handleAddSlot} className="bg-surface-raised border border-border rounded-lg p-4 mb-6">
+        <div className="flex items-center gap-2 text-body-sm font-medium text-text mb-3">
+          <Clock size={16} className="text-brand" />
+          Add a time slot
         </div>
-        <div>
-          <label className="block text-sm text-gray-300 mb-1">End</label>
-          <input
-            type="datetime-local"
-            value={endTime}
-            onChange={(e) => setEndTime(e.target.value)}
-            required
-            className="bg-[#1a1c23] rounded-lg px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
-          />
+        <div className="flex flex-wrap items-end gap-3">
+          <div>
+            <label htmlFor="slot-date" className="block text-caption text-text-muted mb-1">Date</label>
+            <input
+              id="slot-date"
+              type="date"
+              value={date}
+              onChange={(e) => setDate(e.target.value)}
+              required
+              className="bg-surface rounded-md border border-border px-3 py-2 text-body-sm text-text focus:outline-none focus:ring-2 focus:ring-ring"
+            />
+          </div>
+          <div>
+            <label htmlFor="slot-start" className="block text-caption text-text-muted mb-1">Start</label>
+            <input
+              id="slot-start"
+              type="time"
+              value={startTime}
+              onChange={(e) => setStartTime(e.target.value)}
+              required
+              className="bg-surface rounded-md border border-border px-3 py-2 text-body-sm text-text focus:outline-none focus:ring-2 focus:ring-ring"
+            />
+          </div>
+          <div>
+            <label htmlFor="slot-end" className="block text-caption text-text-muted mb-1">End</label>
+            <input
+              id="slot-end"
+              type="time"
+              value={endTime}
+              onChange={(e) => setEndTime(e.target.value)}
+              required
+              className="bg-surface rounded-md border border-border px-3 py-2 text-body-sm text-text focus:outline-none focus:ring-2 focus:ring-ring"
+            />
+          </div>
+          <Button type="submit" variant="primary" size="md">
+            <Plus size={16} /> Add slot
+          </Button>
         </div>
-        <button
-          type="submit"
-          className="flex items-center gap-1 bg-purple-600 hover:bg-purple-700 transition px-4 py-2 rounded-lg text-sm"
-        >
-          <Plus size={16} /> Add slot
-        </button>
       </form>
 
       {slots.length === 0 ? (
-        <p className="text-gray-400 text-sm">No availability slots yet — add one above so mentees can book a session with you.</p>
+        <EmptyState
+          icon={Clock}
+          title="No availability slots yet"
+          body="Add one above so mentees can book a session with you."
+        />
       ) : (
         <div className="space-y-2">
           {slots.map((slot) => (
-            <div key={slot._id} className="flex items-center justify-between bg-[#282c3a] rounded-lg px-4 py-3">
-              <span className="text-sm text-gray-200">
-                {formatSlotTime(slot.startTime)} – {new Date(slot.endTime).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
-              </span>
+            <div key={slot._id} className="flex items-center justify-between bg-surface-raised border border-border rounded-lg px-4 py-3">
+              <span className="text-body-sm text-text">{formatRelativeSlot(slot)}</span>
               <div className="flex items-center gap-3">
-                <span className={`text-xs font-semibold px-2 py-1 rounded-full ${
-                  slot.status === 'open' ? 'bg-green-500/10 text-green-400' : 'bg-purple-500/10 text-purple-400'
-                }`}>
+                <Badge variant={slot.status === 'open' ? 'success' : 'brand'} size="sm">
                   {slot.status === 'open' ? 'Open' : 'Booked'}
-                </span>
+                </Badge>
                 {slot.status === 'open' && (
-                  <button
-                    onClick={() => handleRemoveSlot(slot._id)}
-                    className="text-gray-400 hover:text-red-500 transition"
-                    title="Remove slot"
-                  >
-                    <Trash2 size={16} />
-                  </button>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <IconButton aria-label="Remove slot" onClick={() => handleRemoveSlot(slot._id)} className="h-8 w-8 hover:text-danger">
+                        <Trash2 size={16} />
+                      </IconButton>
+                    </TooltipTrigger>
+                    <TooltipContent>Remove slot</TooltipContent>
+                  </Tooltip>
                 )}
               </div>
             </div>
@@ -126,5 +163,6 @@ export default function AvailabilityManager() {
         </div>
       )}
     </div>
+    </TooltipProvider>
   );
 }

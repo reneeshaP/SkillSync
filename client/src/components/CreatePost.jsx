@@ -54,7 +54,7 @@ const CreatePost = () => {
       }
 
       await postService.createPost(formDataToSend);
-      navigate('/'); // Redirect to homepage after successful post
+      navigate('/feed'); // Redirect to the feed after successful post
     } catch (err) {
       setError(err.message || 'Failed to create post');
     } finally {
@@ -118,7 +118,7 @@ const CreatePost = () => {
           <div className="flex justify-end space-x-4">
             <button
               type="button"
-              onClick={() => navigate('/')}
+              onClick={() => navigate('/feed')}
               className="px-4 py-2 bg-[#282c3a] rounded-lg hover:bg-[#323744] transition"
             >
               Cancel
