@@ -3,11 +3,11 @@ import PropTypes from 'prop-types';
 import { FileText, Download } from 'lucide-react';
 import { Avatar } from './ui/Avatar';
 import { formatDateDivider } from '../lib/datetime';
+import { API_ORIGIN } from '../lib/env';
 
-const API_URL = 'http://localhost:8000';
 const GROUP_WINDOW_MS = 5 * 60 * 1000;
 
-const getFileUrl = (path) => (path?.startsWith('http') ? path : `${API_URL}${path}`);
+const getFileUrl = (path) => (path?.startsWith('http') ? path : `${API_ORIGIN}${path}`);
 
 const formatTime = (timestamp) => {
   if (!timestamp) return '';

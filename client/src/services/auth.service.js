@@ -1,4 +1,4 @@
-const API_URL = 'http://localhost:8000/api';
+import { API_URL } from '../lib/env';
 
 export const authService = {
     login: async (email, password) => {

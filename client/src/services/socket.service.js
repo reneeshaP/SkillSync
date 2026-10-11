@@ -1,4 +1,5 @@
 import { io } from 'socket.io-client';
+import { API_ORIGIN } from '../lib/env';
 
 class SocketService {
     constructor() {
@@ -17,7 +18,7 @@ class SocketService {
             return;
         }
 
-        this.socket = io('http://localhost:8000', {
+        this.socket = io(API_ORIGIN, {
             auth: { token },
             transports: ['websocket', 'polling'],
             reconnection: true,

@@ -1,10 +1,20 @@
 import { Server } from 'socket.io';
 import jwt from 'jsonwebtoken';
 
+const allowedOrigins = (process.env.CLIENT_URL || '')
+  .split(',')
+  .map((origin) => origin.trim())
+  .filter(Boolean);
+
 const setupSocket = (server) => {
   const io = new Server(server, {
     cors: {
-      origin: /^http:\/\/(localhost|127\.0\.0\.1):\d+$/,
+      origin: (origin, callback) => {
+        if (!origin || /^http:\/\/(localhost|127\.0\.0\.1):\d+$/.test(origin) || allowedOrigins.includes(origin)) {
+          return callback(null, true);
+        }
+        callback(new Error('Not allowed by CORS'));
+      },
       methods: ["GET", "POST"],
       credentials: true,
       allowedHeaders: ["Content-Type", "Authorization"]

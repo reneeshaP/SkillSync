@@ -4,7 +4,7 @@
 // and ad hoc initials divs). The actual initials-circle fallback now lives
 // in <Avatar>, not here — this helper only ever resolves real image paths.
 
-const API_ORIGIN = (import.meta.env.VITE_API_URL || 'http://localhost:8000/api').replace(/\/api\/?$/, '');
+import { API_ORIGIN } from './env';
 
 export function getAvatarUrl(path) {
   if (!path) return null;

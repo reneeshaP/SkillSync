@@ -4,26 +4,19 @@ import { authenticateToken } from "../middleware/auth.js";
 import User from "../models/User.js";
 import multer from 'multer';
 import path from 'path';
-import { fileURLToPath } from 'url';
-import { dirname } from 'path';
+import { CloudinaryStorage } from 'multer-storage-cloudinary';
+import cloudinary from '../config/cloudinary.js';
 import { changePassword } from '../controllers/profileController.js';
 import { updateUserEmbedding } from '../services/embedding.service.js';
 import Chat from '../models/Chat.js';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
-
 const router = express.Router();
 
-// Configure multer for file uploads
-const storage = multer.diskStorage({
-    destination: (req, file, cb) => {
-        cb(null, path.join(__dirname, '../uploads/'));
-    },
-    filename: (req, file, cb) => {
-        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-        cb(null, uniqueSuffix + path.extname(file.originalname));
-    }
+// Avatars and resumes upload straight to Cloudinary rather than local disk,
+// since most hosts (Render included) wipe local files on every redeploy/restart.
+const avatarStorage = new CloudinaryStorage({
+    cloudinary,
+    params: { folder: 'skillsync/avatars', resource_type: 'image' },
 });
 
 const fileFilter = (req, file, cb) => {
@@ -39,11 +32,16 @@ const fileFilter = (req, file, cb) => {
 };
 
 const uploadConfig = multer({
-    storage: storage,
+    storage: avatarStorage,
     limits: {
         fileSize: 5 * 1024 * 1024 // 5MB limit
     },
     fileFilter: fileFilter
+});
+
+const resumeStorage = new CloudinaryStorage({
+    cloudinary,
+    params: { folder: 'skillsync/resumes', resource_type: 'raw' },
 });
 
 const resumeFileFilter = (req, file, cb) => {
@@ -58,7 +56,7 @@ const resumeFileFilter = (req, file, cb) => {
 };
 
 const resumeUploadConfig = multer({
-    storage: storage,
+    storage: resumeStorage,
     limits: {
         fileSize: 5 * 1024 * 1024 // 5MB limit
     },
@@ -162,7 +160,7 @@ router.put("/avatar", authenticateToken, uploadConfig.single('avatar'), async (r
             return res.status(400).json({ message: "No file uploaded" });
         }
 
-        const avatarPath = `/uploads/${req.file.filename}`;
+        const avatarPath = req.file.path;
         const user = await User.findByIdAndUpdate(
             req.user.id,
             { $set: { avatar: avatarPath } },
@@ -181,7 +179,7 @@ router.put("/resume", authenticateToken, resumeUploadConfig.single('resume'), as
             return res.status(400).json({ message: "No file uploaded" });
         }
 
-        const resumeUrl = `/uploads/${req.file.filename}`;
+        const resumeUrl = req.file.path;
         const user = await User.findByIdAndUpdate(
             req.user.id,
             { $set: { resume: { url: resumeUrl, filename: req.file.originalname } } },

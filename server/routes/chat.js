@@ -1,6 +1,8 @@
 import express from 'express';
 import multer from 'multer';
 import path from 'path';
+import { CloudinaryStorage } from 'multer-storage-cloudinary';
+import cloudinary from '../config/cloudinary.js';
 import { authenticateToken } from '../middleware/auth.js';
 import Chat from '../models/Chat.js';
 import Message from '../models/Message.js';
@@ -9,15 +11,13 @@ import User from '../models/User.js';
 
 const router = express.Router();
 
-// Configure multer for chat attachments (images, PDFs, Word docs, and audio for voice messages)
-const attachmentStorage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, 'uploads/');
-  },
-  filename: (req, file, cb) => {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    cb(null, uniqueSuffix + path.extname(file.originalname));
-  }
+// Chat attachments (images, PDFs, Word docs, and audio for voice messages)
+// upload straight to Cloudinary rather than local disk, since most hosts
+// (Render included) wipe local files on every redeploy/restart. `resource_type:
+// 'auto'` lets Cloudinary classify each of those mixed file types correctly.
+const attachmentStorage = new CloudinaryStorage({
+  cloudinary,
+  params: { folder: 'skillsync/chat-attachments', resource_type: 'auto' },
 });
 
 const allowedAttachmentTypes = /jpeg|jpg|png|gif|webp|pdf|doc|docx|webm|mp3|wav|ogg/;
@@ -257,7 +257,7 @@ router.post('/:chatId/messages', authenticateToken, attachmentUpload.single('fil
       sender: req.user._id,
       text,
       attachment: req.file ? {
-        url: `/uploads/${req.file.filename}`,
+        url: req.file.path,
         filename: req.file.originalname,
         mimetype: req.file.mimetype
       } : undefined,

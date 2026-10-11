@@ -8,6 +8,7 @@ import ChatArea from '../components/ChatArea';
 import MessageSidebar from '../components/MessageSidebar';
 import { EmptyState } from '../components/ui/EmptyState';
 import { toast } from '../components/ui/Toast';
+import { API_URL } from '../lib/env';
 
 const ChatPage = () => {
   const navigate = useNavigate();
@@ -59,7 +60,7 @@ const ChatPage = () => {
     const fetchPendingRequests = async () => {
       try {
         const token = localStorage.getItem('token');
-        const response = await axios.get('http://localhost:8000/api/chats/requests', {
+        const response = await axios.get(`${API_URL}/chats/requests`, {
           headers: { Authorization: `Bearer ${token}` }
         });
         setPendingRequests(response.data);
@@ -99,7 +100,7 @@ const ChatPage = () => {
     }
     try {
       const token = localStorage.getItem('token');
-      const response = await axios.get(`http://localhost:8000/api/chats/users/search?q=${query}`, {
+      const response = await axios.get(`${API_URL}/chats/users/search?q=${query}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       setSearchResults(response.data.filter(u => u._id !== user._id));
@@ -126,7 +127,7 @@ const ChatPage = () => {
     const getConversations = async () => {
       try {
         const token = localStorage.getItem('token');
-        const response = await axios.get('http://localhost:8000/api/chats', {
+        const response = await axios.get(`${API_URL}/chats`, {
           headers: { Authorization: `Bearer ${token}` }
         });
         setConversations(response.data);
@@ -181,7 +182,7 @@ const ChatPage = () => {
     const getMessages = async () => {
       try {
         const token = localStorage.getItem('token');
-        const response = await axios.get(`http://localhost:8000/api/chats/${currentChat._id}/messages`, {
+        const response = await axios.get(`${API_URL}/chats/${currentChat._id}/messages`, {
           headers: { Authorization: `Bearer ${token}` }
         });
         setMessages(response.data);
@@ -226,7 +227,7 @@ const ChatPage = () => {
   const handleSendMessage = async (text) => {
     try {
       const token = localStorage.getItem('token');
-      const response = await axios.post(`http://localhost:8000/api/chats/${currentChat._id}/messages`, {
+      const response = await axios.post(`${API_URL}/chats/${currentChat._id}/messages`, {
         text
       }, {
         headers: { Authorization: `Bearer ${token}` }
@@ -246,7 +247,7 @@ const ChatPage = () => {
       const formData = new FormData();
       formData.append('file', file);
 
-      const response = await axios.post(`http://localhost:8000/api/chats/${currentChat._id}/messages`, formData, {
+      const response = await axios.post(`${API_URL}/chats/${currentChat._id}/messages`, formData, {
         headers: {
           Authorization: `Bearer ${token}`,
           'Content-Type': 'multipart/form-data'
@@ -296,7 +297,7 @@ const ChatPage = () => {
       const token = localStorage.getItem('token');
 
       // Mark messages as read
-      await axios.put(`http://localhost:8000/api/chats/${conversation._id}/read`, {}, {
+      await axios.put(`${API_URL}/chats/${conversation._id}/read`, {}, {
         headers: { Authorization: `Bearer ${token}` }
       });
 
@@ -322,7 +323,7 @@ const ChatPage = () => {
 
       // Ask the server directly for an existing conversation rather than relying on
       // local `conversations` state, which may not have finished loading yet.
-      const chatsResponse = await axios.get('http://localhost:8000/api/chats', {
+      const chatsResponse = await axios.get(`${API_URL}/chats`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       setConversations(chatsResponse.data);
@@ -342,7 +343,7 @@ const ChatPage = () => {
       console.log('Sending connection request with data:', { receiverId: userId });
       // Send connection request
       const response = await axios.post(
-        'http://localhost:8000/api/chats/request', 
+        `${API_URL}/chats/request`,
         { receiverId: userId },
         { 
           headers: { 
@@ -389,7 +390,7 @@ const ChatPage = () => {
   const handleConnectionResponse = async (requestId, accept) => {
     try {
       const token = localStorage.getItem('token');
-      const response = await axios.post(`http://localhost:8000/api/chats/request/${requestId}/respond`,
+      const response = await axios.post(`${API_URL}/chats/request/${requestId}/respond`,
         { accept },
         { headers: { Authorization: `Bearer ${token}` }}
       );

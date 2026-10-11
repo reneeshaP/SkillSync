@@ -6,6 +6,7 @@ import { GoogleLogin } from "@react-oauth/google";
 import { useAuth } from "../context/AuthContext";
 import { authService } from "../services/auth.service";
 import { useTheme } from "../contexts/ThemeContext";
+import { API_URL } from "../lib/env";
 import AuthLayout from "../components/auth/AuthLayout";
 import SignupCarousel from "../components/auth/SignupCarousel";
 import PasswordStrengthMeter from "../components/auth/PasswordStrengthMeter";
@@ -71,7 +72,7 @@ const Signup = () => {
 
     setSubmitting(true);
     try {
-      const res = await axios.post("http://localhost:8000/api/auth/signup", {
+      const res = await axios.post(`${API_URL}/auth/signup`, {
         username: formData.username,
         email: formData.email,
         password: formData.password,
